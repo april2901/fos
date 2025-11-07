@@ -9,3 +9,6 @@ git merge upstream/branch_name
 
 # 4. 최신화된 내용을 내 깃헙(origin)에 올리기
 git push origin branch_name
+
+# 5. vercel로 배포
+vercel --prod
