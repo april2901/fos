@@ -1,0 +1,160 @@
+# 프레젠테이션 프롬프터 - 백엔드/프론트엔드 분리 설정 가이드
+
+## 프로젝트 구조
+
+```
+project/
+├── frontend/                    # React Vite 프론트엔드
+│   ├── src/
+│   ├── package.json
+│   └── vite.config.ts
+├── api/                         # Vercel Functions (백엔드)
+│   ├── speech-comparison.ts     # 음성 vs 원고 비교
+│   ├── llm-regenerate.ts        # LLM으로 누락된 부분 재구성
+│   └── utils/
+│       ├── comparison-service.ts
+│       ├── llm-client.ts
+│       └── types.ts
+├── vercel.json                  # Vercel 배포 설정
+└── package.json                 # 루트 package.json
+```
+
+## 설치 방법
+
+### 1. 의존성 설치
+
+```bash
+npm install
+cd frontend && npm install
+```
+
+또는 한 번에:
+
+```bash
+npm run install-all
+```
+
+### 2. 환경변수 설정
+
+`.env.local` 파일을 루트에 생성하고 다음을 추가:
+
+```env
+OPENAI_API_KEY=sk-your-api-key-here
+```
+
+> OpenAI API 키는 https://platform.openai.com/api-keys 에서 발급받으세요
+
+### 3. 로컬 개발
+
+```bash
+# 프론트엔드 개발 서버 실행 (포트 3000)
+npm run dev
+```
+
+프론트엔드는 자동으로 `/api/*` 요청을 localhost:3001로 프록시합니다.
+
+## API 엔드포인트
+
+### 1. 음성 vs 원고 비교
+
+**POST** `/api/speech-comparison`
+
+요청:
+```json
+{
+  "spokenText": "발표자가 말한 텍스트",
+  "scriptText": "원고 전체 텍스트",
+  "lastMatchedIndex": 0
+}
+```
+
+응답:
+```json
+{
+  "currentMatchedIndex": 12,
+  "isCorrect": true,
+  "skippedParts": [],
+  "mismatchedWords": []
+}
+```
+
+### 2. LLM으로 누락된 부분 재구성
+
+**POST** `/api/llm-regenerate`
+
+요청:
+```json
+{
+  "fullScript": "원고 전체",
+  "spokenText": "발표자가 말한 부분",
+  "skippedParts": ["누락된 부분 1", "누락된 부분 2"]
+}
+```
+
+응답:
+```json
+{
+  "regeneratedScript": "재구성된 원고...",
+  "summary": "누락된 2개 부분을 포함하여 원고를 재구성했습니다."
+}
+```
+
+## Vercel 배포
+
+### 1. Vercel 계정 연결
+
+```bash
+npm i -g vercel
+vercel login
+```
+
+### 2. 환경변수 설정
+
+Vercel 대시보드에서 프로젝트 설정 → Environment Variables:
+
+- `OPENAI_API_KEY`: OpenAI API 키
+
+### 3. 배포
+
+```bash
+vercel deploy --prod
+```
+
+## 프론트엔드에서 API 호출
+
+`useApiClient` 훅을 사용:
+
+```typescript
+import { useApiClient } from '@/hooks/useApiClient';
+
+function MyComponent() {
+  const { compareSpeech, regenerateWithLLM, isLoading, error } = useApiClient();
+
+  // 음성 비교
+  const result = await compareSpeech(spokenText, scriptText);
+
+  // LLM 재구성
+  const regenerated = await regenerateWithLLM(fullScript, spokenText, skippedParts);
+}
+```
+
+## 트러블슈팅
+
+### API 호출 실패
+
+1. 환경변수가 설정되었는지 확인
+2. 프론트엔드가 올바른 경로로 요청하는지 확인
+3. 브라우저 콘솔에서 네트워크 탭 확인
+
+### OpenAI API 에러
+
+- API 키가 유효한지 확인
+- API 키가 활성화되었는지 확인
+- 사용량이 제한을 넘었는지 확인
+
+## 피처 추가 계획
+
+- [ ] 음성 인식 오류 개선
+- [ ] 실시간 대시보드 추가
+- [ ] 발표 기록 저장
+- [ ] 발표 분석 리포트
