@@ -138,7 +138,8 @@ export function LivePrompterScreen({
 
   const allWords = scriptParagraphs.flatMap((p) => p.text.split(" "));
 
-    useEffect(() => {
+  // Speech Recognition 초기화 (한 번만 실행)
+  useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
       onShowToast("warning", "이 브라우저는 음성 인식을 지원하지 않습니다.");
@@ -146,9 +147,9 @@ export function LivePrompterScreen({
     }
 
     const recognition = new SpeechRecognitionAPI() as CustomSpeechRecognition;
-    recognition.continuous = true; // 계속해서 음성을 인식
-    recognition.interimResults = true; // 중간 결과를 계속 반환
-    recognition.lang = "ko-KR"; // 한국어 설정
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "ko-KR";
 
     recognition.onstart = () => {
       setIsRecognizing(true);
@@ -181,11 +182,12 @@ export function LivePrompterScreen({
       }
       
       const transcript = (finalTranscript || interimTranscript).trim();
-      if (transcript === "" || transcript === lastTranscript) return;
-
-      setLastTranscript(transcript);
+      if (transcript === "") return;
 
       // 전체 원고 텍스트 구성
+      console.log("음성 인식 결과:", transcript);
+      setLastTranscript(transcript);
+
       const fullScript = scriptParagraphs.map(p => p.text).join(" ");
 
       try {
@@ -204,9 +206,11 @@ export function LivePrompterScreen({
 
     // 컴포넌트 언마운트 시 음성 인식 정리
     return () => {
-      recognition.stop();
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
     };
-  }, [allWords, currentWordIndex, isPlaying, compareSpeech, onShowToast, scriptParagraphs, lastTranscript]);
+  }, [onShowToast]); // 의존성 배열 최소화
 /*
   useEffect(() => {
     if (isPlaying) {
@@ -225,27 +229,30 @@ export function LivePrompterScreen({
   }, [isPlaying, allWords.length, onShowToast]);
 */
 
-  const handlePlayPause = () => {
+  const handlePlayPause = async () => {
     const recognition = recognitionRef.current;
-    if (!recognition) return;
+    if (!recognition) {
+      onShowToast("error", "음성 인식을 초기화할 수 없습니다.");
+      return;
+    }
 
     if (isPlaying) {
+      // 중지
       recognition.stop();
+      setIsPlaying(false);
     } else {
-      // 브라우저에서 마이크 권한을 요청합니다.
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(() => {
-          setCurrentWordIndex(0); // 다시 시작할 때 처음부터
-          recognition.start();
-        })
-        .catch(err => {
-          onShowToast("error", "마이크 접근 권한이 필요합니다.");
-          console.error("Mic access error", err);
-          setIsPlaying(false); // 권한 없으면 isPlaying 상태 복원
-          return; // 권한 없으면 시작하지 않음
-        });
+      // 시작 - 마이크 권한 요청
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        setCurrentWordIndex(0);
+        setIsPlaying(true);
+        recognition.start();
+        onShowToast("info", "음성 인식을 시작합니다.");
+      } catch (err) {
+        onShowToast("error", "마이크 접근 권한이 필요합니다.");
+        console.error("Mic access error:", err);
+      }
     }
-    setIsPlaying(!isPlaying);
   };
   // Simulate real-time metrics changes
   useEffect(() => {
