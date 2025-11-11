@@ -46,12 +46,24 @@ GEMINI_API_KEY=your-gemini-api-key-here
 
 ### 3. 로컬 개발
 
+서버 실행을 위해 vercel을 설치합니다.
 ```bash
-# 프론트엔드 개발 서버 실행 (포트 3000)
+# vercel cli 설치
+npm i -g vercel
+```
+백엔드용 터미널과 프론트엔드용 터미널을 각각 실행합니다.
+```bash
+# 백엔드 개발 서버 실행 (포트 3000)
+vercel dev
+```
+
+```bash
+# 프론트엔드 폴더로 이동하여 개발 서버 실행 (포트 5173)
+cd frontend
 npm run dev
 ```
 
-프론트엔드는 자동으로 `/api/*` 요청을 localhost:3001로 프록시합니다.
+프론트엔드는 자동으로 /api/* 요청을 localhost:3000로 프록시합니다.
 
 ## API 엔드포인트
 
