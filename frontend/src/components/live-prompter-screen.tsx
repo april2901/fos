@@ -6,6 +6,7 @@ import { useApiClient } from "../hooks/useApiClient";
 import {
   Play,
   Pause,
+  Square,
   ChevronLeft,
   ChevronRight,
   ZoomIn,
@@ -296,6 +297,36 @@ export function LivePrompterScreen({
         console.error("Mic access error:", err);
       }
     }
+  };
+
+  const handleStop = async () => {
+    const recognition = recognitionRef.current;
+    if (!recognition) {
+      onShowToast("error", "음성 인식을 초기화할 수 없습니다.");
+      return;
+    }
+
+    // 중지: 음성 인식 중지하고 처음으로 돌아가기
+    isStoppingRef.current = true;
+    const wasPlaying = isPlaying;
+    setIsPlaying(false);
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // 재생 중이었을 때만 recognition.stop() 호출
+    if (wasPlaying) {
+      try {
+        recognition.stop();
+      } catch (err) {
+        console.error("Stop error:", err);
+        isStoppingRef.current = false;
+      }
+    } else {
+      // 이미 멈춰있는 경우 플래그만 초기화
+      isStoppingRef.current = false;
+    }
+    
+    setCurrentWordIndex(0);
+    onShowToast("info", "발표가 중지되고 처음으로 돌아갔습니다.");
   };
   // Simulate real-time metrics changes
   useEffect(() => {
@@ -721,6 +752,16 @@ export function LivePrompterScreen({
           >
             {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
             {isPlaying ? "일시정지" : "시작"}
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={handleStop}
+            className="gap-2"
+            disabled={!isPlaying && currentWordIndex === 0}
+          >
+            <Square className="w-5 h-5 text-red-500" />
+            중지
           </Button>
           <Button
             variant="outline"
