@@ -63,14 +63,29 @@ export function FlowGraphScreen() {
         const options = {
             nodes: {
                 shape: "box",
+                shapeProperties: {
+                    borderRadius: 16   // 둥근 모서리
+                },
                 margin: {
-                        top: 10,
-                        right: 10,
-                        bottom: 10,
-                        left: 10
-                    },
-                font: { size: 16, multi: true, color: "#003322" },
-                borderWidth: 2
+                    top: 12,
+                    right: 12,
+                    bottom: 12,
+                    left: 12
+                },          // 패딩
+                font: {
+                    size: 15,
+                    multi: true,
+                    color: "#000000ff",
+                    face: "Inter, Pretendard, sans-serif"
+                },
+                borderWidth: 2,
+                shadow: {
+                    enabled: true,
+                    color: "rgba(0,0,0,0.25)",
+                    size: 20,
+                    x: 0,
+                    y: 4
+                }
             },
             edges: {
                 arrows: "to",
