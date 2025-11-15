@@ -31,6 +31,7 @@ export function AppBar({
     { id: "report", label: "리포트" },
     { id: "qna", label: "Q&A" },
     { id: "settings", label: "설정" },
+    { id: "flow", label: "회의" },
   ];
 
   const getMicColor = () => {

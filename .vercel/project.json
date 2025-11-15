@@ -1,1 +1,16 @@
-{"projectId":"prj_7usTUxpaBwZjVTCDCbP4KVcxFEd3","orgId":"team_A2dQQmFPf8VB1EHhWvLM66Vk","projectName":"back_front"}
+{
+  "projectId": "prj_A0O4jQVEB8uDoaiUj3uDHUJw3whW",
+  "orgId": "team_CuM7FiqPV3EfPnIhlH9gvMDo",
+  "projectName": "test13",
+  "settings": {
+    "createdAt": 1763168570944,
+    "framework": "vite",
+    "devCommand": "true",
+    "installCommand": null,
+    "buildCommand": "cd frontend && npm install && npm run build",
+    "outputDirectory": "frontend/build",
+    "rootDirectory": null,
+    "directoryListing": false,
+    "nodeVersion": "22.x"
+  }
+}
