@@ -1,0 +1,14 @@
+{
+    "name": "ai-assistant-root",
+    "private": true,
+    "scripts": {
+        "install:all": "npm install && cd frontend && npm install && cd ../api && npm install"
+    },
+    "devDependencies": {
+        "vercel": "latest"
+    },
+    "dependencies": {
+        "@vercel/node": "^3.0.0",
+        "dotenv": "^17.2.3"
+    }
+}

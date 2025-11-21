@@ -2,6 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { useState } from "react";
+import { useApiClient } from "../hooks/useApiClient";
 import { Switch } from "./ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
@@ -22,9 +24,9 @@ interface SettingsScreenProps {
   onIsHighlightChange: (value: boolean) => void;
 }
 
-export function SettingsScreen({ 
-  onShowToast, 
-  theme, 
+export function SettingsScreen({
+  onShowToast,
+  theme,
   onThemeChange,
   fontSize,
   scrollSpeed,
@@ -35,6 +37,24 @@ export function SettingsScreen({
   onIsAutoSlideChange,
   onIsHighlightChange
 }: SettingsScreenProps) {
+  const { testLLM, isLoading } = useApiClient();
+  const [testCount, setTestCount] = useState(3);
+  const [testResult, setTestResult] = useState("");
+
+  const handleTestLLM = async () => {
+    if (isLoading) return;
+    setTestResult("AI가 생각중입니다...");
+    try {
+      const result = await testLLM(testCount);
+      if (result && result.resultText) {
+        setTestResult(result.resultText);
+      } else {
+        setTestResult("결과를 가져오지 못했습니다.");
+      }
+    } catch (error) {
+      setTestResult("에러가 발생했습니다.");
+    }
+  };
   const handleSave = () => {
     onShowToast("success", "설정이 저장되었습니다");
   };
@@ -139,7 +159,7 @@ export function SettingsScreen({
                     min="16"
                     max="48"
                     value={fontSize}
-                    onChange={(e) => onFontSizeChange(Number(e.target.value))} 
+                    onChange={(e) => onFontSizeChange(Number(e.target.value))}
                     className="flex-1"
                   />
                   <span className="w-16 text-center">{fontSize}32px</span>
@@ -195,7 +215,7 @@ export function SettingsScreen({
                 </div>
                 <Switch checked={isHighlight} // [수정] defaultChecked -> checked
                   onCheckedChange={onIsHighlightChange} // [수정] onCheckedChange 이벤트 추가
-                   />
+                />
               </div>
 
               <div className="flex items-center justify-between">
@@ -243,6 +263,37 @@ export function SettingsScreen({
                   />
                   <span className="w-16 text-center">7</span>
                 </div>
+              </div>
+
+              <div className="pt-6 border-t">
+                <h3 className="text-lg font-semibold mb-4">AI API Test</h3>
+                <div className="flex items-end gap-4 mb-4">
+                  <div className="flex-1">
+                    <label className="block mb-2 text-sm text-muted-foreground">
+                      메뚜기 종류 개수
+                    </label>
+                    <input
+                      type="number"
+                      value={testCount}
+                      onChange={(e) => setTestCount(Number(e.target.value))}
+                      className="w-full p-2 border rounded bg-background"
+                      min="1"
+                      max="10"
+                    />
+                  </div>
+                  <button
+                    onClick={handleTestLLM}
+                    disabled={isLoading}
+                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isLoading ? "요청 중..." : "테스트 실행"}
+                  </button>
+                </div>
+                {testResult && (
+                  <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-lg whitespace-pre-wrap">
+                    {testResult}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-between">

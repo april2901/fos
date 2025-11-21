@@ -1,8 +1,6 @@
-/**
- * LLM API 클라이언트
- * Google Gemini API를 사용합니다.
- * 환경 변수: GEMINI_API_KEY
- */
+import * as dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
 interface GeminiContent {
   role: 'user' | 'model';
@@ -33,6 +31,17 @@ export async function regenerateWithLLM(
   spokenText: string,
   skippedParts: string[]
 ): Promise<string> {
+  // Load environment variables
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  } else {
+    const parentEnvPath = path.resolve(process.cwd(), '../.env.local');
+    if (fs.existsSync(parentEnvPath)) {
+      dotenv.config({ path: parentEnvPath });
+    }
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error('GEMINI_API_KEY is not set');
@@ -71,7 +80,7 @@ ${skippedParts.join('\n')}
 
   try {
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: {
@@ -90,6 +99,79 @@ ${skippedParts.join('\n')}
     return data.candidates[0]?.content?.parts[0]?.text || '';
   } catch (error) {
     console.error('LLM regeneration error:', error);
+    throw error;
+  }
+}
+
+/**
+ * LLM API Test Function
+ * @param count Number of items to request
+ * @returns Generated text from Gemini
+ */
+export async function llm_api_test(count: number): Promise<string> {
+  // Load environment variables
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  } else {
+    const parentEnvPath = path.resolve(process.cwd(), '../.env.local');
+    if (fs.existsSync(parentEnvPath)) {
+      dotenv.config({ path: parentEnvPath });
+    }
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+
+  const prompt = `메뚜기의 종류를 ${count}개 말해봐`;
+
+  const request: GeminiRequest = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 1000,
+    },
+  };
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
+
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(request),
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Gemini API error: ${error.error?.message || 'Unknown error'}`);
+      }
+
+      const data: GeminiResponse = await response.json();
+      return data.candidates[0]?.content?.parts[0]?.text || '';
+    } catch (error) {
+      clearTimeout(timeoutId);
+      throw error;
+    }
+  } catch (error) {
+    console.error('LLM test error:', error);
     throw error;
   }
 }

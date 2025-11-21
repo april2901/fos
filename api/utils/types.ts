@@ -34,3 +34,12 @@ export interface ApiErrorResponse {
   code: string;
   timestamp: string;
 }
+
+// LLM Test Request/Response
+export interface LLMTestRequest {
+  count: number;
+}
+
+export interface LLMTestResponse {
+  resultText: string;
+}

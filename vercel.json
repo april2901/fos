@@ -1,7 +1,6 @@
 {
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
-  "framework": "vite",
   "rewrites": [
     {
       "source": "/api/speech-comparison",
@@ -10,6 +9,11 @@
     {
       "source": "/api/llm-regenerate",
       "destination": "/api/llm-regenerate.ts"
+    },
+    {
+      "source": "/api/llm-test",
+      "destination": "/api/llm-test.ts"
     }
-  ]
+  ],
+  "devCommand": "cd frontend && npm run dev -- --port $PORT"
 }

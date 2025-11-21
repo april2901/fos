@@ -111,10 +111,46 @@ export function useApiClient() {
     []
   );
 
+  const testLLM = useCallback(async (count: number) => {
+    setIsLoading(true);
+    setError(null);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15초 타임아웃
+
+    try {
+      const response = await fetch(`${API_BASE}/api/llm-test`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ count }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "LLM test failed");
+      }
+      return await response.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const message = err instanceof Error ? err.message : "Unknown error";
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError("요청 시간이 초과되었습니다. 다시 시도해주세요.");
+      } else {
+        setError(message);
+      }
+      console.error("LLM test error:", err);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     isLoading,
     error,
     compareSpeech,
     regenerateWithLLM,
+    testLLM,
   };
 }

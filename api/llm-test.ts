@@ -26,15 +26,16 @@ export default async function handler(
   }
 
   try {
-    const { msrnum } = req.body as LLMTestRequest;
+    console.log('Received LLM test request body:', req.body);
+    const { count } = req.body as LLMTestRequest;
 
-    if (typeof msrnum === 'undefined') {
-      res.status(400).json({ error: 'Missing required field: msrnum' });
+    if (typeof count === 'undefined') {
+      res.status(400).json({ error: 'Missing required field: count' });
       return;
     }
 
     // llm-client.ts에 만든 함수 호출
-    const resultText = await llm_api_test(msrnum);
+    const resultText = await llm_api_test(count);
 
     // 결과를 프론트엔드로 전송
     res.status(200).json({ resultText });
