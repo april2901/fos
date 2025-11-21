@@ -2,6 +2,7 @@
   "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/build",
   "framework": "vite",
+  "devCommand": false,
   "rewrites": [
     {
       "source": "/api/speech-comparison",

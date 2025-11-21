@@ -16,6 +16,7 @@ import { ReportScreen } from "./components/report-screen";
 import { SettingsScreen } from "./components/settings-screen";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./components/ui/button";
+import { FlowGraphScreen } from "./components/flow-graph"; 
 
 export default function App() {
   const screens = [
@@ -25,6 +26,7 @@ export default function App() {
     "qna",
     "report",
     "settings",
+    "flow",
   ];
   const [currentScreen, setCurrentScreen] = //현재 화면이 뭔지 담고 있는 변수
     useState("dashboard");
@@ -195,6 +197,9 @@ export default function App() {
             onIsHighlightChange={setIsHighlight}
           />
         );
+      case "flow":
+        return <FlowGraphScreen />;
+
       default:
         return (
           <DashboardScreen onNavigate={setCurrentScreen} />
