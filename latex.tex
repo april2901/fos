@@ -1,0 +1,456 @@
+\documentclass[conference]{IEEEtran}
+\IEEEoverridecommandlockouts
+% The preceding line is only needed to identify funding in the first footnote. If that is unneeded, please comment it out.
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
+\usepackage{url}
+\usepackage{kotex} % For Korean name support if needed
+\usepackage{booktabs} % For prettier tables
+\usepackage{multirow}
+\usepackage{listings} % For code snippets
+
+% Formatting for constraints and criteria lists
+\newcommand{\criteriaitem}{\item[\textbf{\textbullet}]}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
+
+\begin{document}
+
+\title{FoS (Focus on Speaking)\\
+\normalsize Group 12\\
+\small \url{https://github.com/april2901/ai-assistant-for-presentation}
+\thanks{XXX-X-XXXX-XXXX-X/XX/\$XX.00 \copyright 2025 IEEE}
+}
+
+\author{
+\IEEEauthorblockN{Sangyoon Kwon}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{Backend Development} \\
+Seoul, Republic of Korea \\
+is0110@hanyang.ac.kr}
+\and
+\IEEEauthorblockN{Dohoon Kim}
+\IEEEauthorblockA{\textit{Department of Computer Science} \\
+\textit{Backend Development} \\
+Seoul, Republic of Korea \\
+april2901@hanyang.ac.kr}
+\and
+\IEEEauthorblockN{Daeun Lee}
+\IEEEauthorblockA{\textit{Division of Business Administration} \\
+\textit{UI Design, PM} \\
+Seoul, Republic of Korea \\
+shinran2929@hanyang.ac.kr}
+\and
+\IEEEauthorblockN{Hyeyun Kwon}
+\IEEEauthorblockA{\textit{Department of Information Systems} \\
+\textit{Frontend Development} \\
+Seoul, Republic of Korea \\
+herakwon1124@hanyang.ac.kr}
+\and
+\IEEEauthorblockN{Seohyun Kim}
+\IEEEauthorblockA{\textit{Department of Information Systems} \\
+\textit{Frontend Development} \\
+Seoul, Republic of Korea \\
+dianwls0326@hanyang.ac.kr}
+\and
+\IEEEauthorblockN{Minhyuk Jang}
+\IEEEauthorblockA{\textit{Division of Business Administration} \\
+\textit{UI Design, PM} \\
+Seoul, Republic of Korea \\
+jmh12230@hanyang.ac.kr}
+}
+
+\maketitle
+
+\begin{abstract}
+In modern business and educational environments, meetings and presentations are key means of communication, and their importance continues to grow. However, presenters and participants often experience cognitive overload as they manage speech delivery, script reference, slide transitions, and time management while also trying to follow complex discussion flows and decisions. This leads to topic drift, loss of focus, and unclear outcomes. To address these issues, this project proposes an \textbf{LG display--linked real-time meeting AI prompter} that extends a traditional teleprompter into an active, context-aware assistant. The system listens to participants' speech, interprets the meeting context in real time, and presents the next required information---such as agenda structure, current topic, decisions, and action items---on LG displays, while providing a private coaching dashboard for the presenter or host. Core features include real-time STT, flexible speech-to-script matching, keyword omission detection, a real-time feedback dashboard, agenda visualization, decision and action-item extraction, and fact-check widgets. A Meeting Summary Report summarizes key topics, ideas, decisions, and action items after the session. Through these functions, the project aims to improve both individual presentation quality and overall meeting efficiency, and to explore integration within LG's smart office ecosystem.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Speech Recognition, Real-Time STT, Script Synchronization, Real-Time Teleprompter, Slide Automation, Agenda Tracking, Presentation Feedback, Human-Computer Interaction, Meeting Intelligence
+\end{IEEEkeywords}
+
+\section*{Role Assignment}
+\begin{table}[htbp]
+\caption{Role Assignment}
+\begin{center}
+\begin{tabular}{p{0.15\textwidth} p{0.1\textwidth} p{0.18\textwidth}}
+\hline
+\textbf{Roles} & \textbf{Name} & \textbf{Task description etc.} \\
+\hline \hline
+\textbf{User} & Daeun Lee, Minhyuk Jang & Tests the prototype from the user's perspective, focusing on interface usability, speech synchronization accuracy, and overall user experience. Provides qualitative feedback for refinement. \\
+\hline
+\textbf{Customer} (Assumed Client) & LG Electronics & Defines requirements for smart office presentation support software and evaluates its feasibility for integration with LG's webOS-based business ecosystem. \\
+\hline
+\textbf{Software Developer} & Sangyoon Kwon, Dohoon Kim (Backend), Hyeyun Kwon, Seohyun Kim (Frontend) & Responsible for system implementation including backend server logic, database management, API communication, and frontend interface development. Ensures real-time synchronization and stable slide automation. \\
+\hline
+\textbf{Development Manager \& UI Designer} & Daeun Lee, Minhyuk Jang & Oversees project planning, documentation, and communication between development teams. Manages task allocation, schedule tracking, design of interface and quality assurance. \\
+\hline
+\end{tabular}
+\label{tab:roles}
+\end{center}
+\end{table}
+
+\section{Introduction}
+
+\subsection{Challenges in Modern Presentations and Meetings}
+In professional and academic settings, presentations and meetings have become essential tools for sharing ideas and making decisions. Yet presenters and facilitators must simultaneously handle speech delivery, script reference, slide transitions, and time tracking, while participants struggle to follow complex discussion flows and remember key points. This often causes interruptions in the presentation flow, omission of important content, topic drift during discussions, and unclear conclusions, ultimately reducing communication efficiency.
+
+\subsection{Limitations of Existing Solutions}
+Existing tools such as teleprompters, timers, and subtitle features mainly provide static information or simple transcription. They are useful for displaying text but do not actively intervene in real time to prevent topic drift or support decision alignment. Many AI-based meeting services focus on post-meeting summaries or minutes, which help review what happened but do not improve the efficiency of the meeting while it is in progress. As a result, core issues such as cognitive overload and live meeting inefficiency remain unresolved.
+
+\subsection{Project Goals and Proposed Solution}
+This project proposes an integrated support system that covers preparation, live delivery, and post-meeting feedback. The core concept is an ``\textbf{LG Display--Linked Real-Time Meeting AI Prompter}.'' The system continuously listens to meeting audio, analyzes the semantic context of each utterance, and surfaces what the meeting needs next: agenda structure, current topic, decisions, action items, and fact-check results. At the same time, it provides a private teleprompter and coaching dashboard for the presenter or host, helping with script tracking, omission alerts, pacing, and gesture suggestions. The ultimate goal is to reduce cognitive load and improve meeting focus and decision-making speed.
+
+\subsection{Dual-Screen Architecture for LG Displays}
+To support both individual coaching and shared awareness, the system adopts a dual-screen architecture.
+\begin{itemize}
+    \item \textbf{Screen 1 (Presenter Dashboard)}: Shown on the presenter's personal device (e.g., LG Gram) and provides a private teleprompter, omission alerts, pace metrics, and AI suggestions.
+    \item \textbf{Screen 2 (Shared Meeting Board)}: Shown on LG signage, LG One:Quick, or conference room TVs and visualizes slides, the real-time agenda map, decisions and action items, and fact-check widgets for all participants.
+\end{itemize}
+This separation allows the presenter to receive rich guidance without overwhelming the audience, while participants share a clear view of where the meeting is and what has been decided.
+
+\section{Requirements}
+
+\subsection{Before Presentation}
+This phase focuses on the preparation process before a presenter begins their presentation. Users interact with the system to upload materials, create a script, and adjust content to fit the presentation environment.
+
+\subsubsection{Slide-Script Alignment Recognition and Consulting}
+When a user uploads a PPTX or PDF file, the system extracts textual and visual elements using python-pptx and the Google Vision API (OCR). A multimodal LLM processes these elements to interpret textual and graphical contexts, generating a coherent draft script for each slide.
+
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item OCR text recognition accuracy $\ge 95\%$
+        \item Draft script grammatical accuracy $\ge 95\%$
+        \item Slide--text coherence $\ge 95\%$
+    \end{itemize}
+    \item \textbf{Input \& Output}
+    \begin{itemize}
+        \item Input: Presentation file (.pptx, .pdf)
+        \item Output: Structured text/image metadata, draft script (3--6 sentences per slide)
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Max 100 slides
+        \item Max file size 200 MB
+        \item Max 10 images per slide
+        \item Supported formats: PPTX, PDF
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Presentation Environment-Specific Script Adjustment}
+The system adjusts the script's vocabulary level, tone, and length based on the audience type (non-expert / practitioner / expert), target presentation time, and speaker's pace. Using TensorFlow.js-based vision models, audience facial expressions are analyzed every 3 seconds to compute a ``focus score'' (0--100). When time is running short or audience engagement decreases, an LLM provides real-time summaries or interactive remarks.
+
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Script adjustment time $\le 5$s
+        \item Focus detection accuracy $\ge 85\%$
+        \item Timing deviation $\le \pm5\%$
+        \item Script fluency $\ge 90\%$
+    \end{itemize}
+    \item \textbf{Input \& Output}
+    \begin{itemize}
+        \item Input: Audience type, target duration, speech rate (WPM), tone, audience video data
+        \item Output: Adjusted script (.txt), recommended timing table, real-time teleprompter feedback
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Camera $\ge 720p$
+        \item Max 10 audience members detectable
+        \item LLM request frequency $\le 1$ per 10s
+        \item Presentation $\le 60$ min
+    \end{itemize}
+\end{itemize}
+
+\subsection{Live Delivery Phase}
+This phase involves real-time interaction between the user and the system during the actual presentation. The system detects the presenter's speech and performs instant support tasks like synchronization, feedback, and suggestions.
+
+\subsubsection{Real-time Teleprompter (Meeting Mode Support)}
+The system transcribes the presenter's and participants' speech in real time using Google Cloud or Naver Clova STT and aligns it with the prepared script via KoSentence-BERT semantic similarity. The current sentence is visually highlighted on the teleprompter. In meeting mode, the STT pipeline can capture speech from multiple people in the room as a single mixed audio stream; downstream modules operate on this combined transcript.
+
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Speech--script synchronization delay $\le 1$ s
+        \item Highlight accuracy $\ge 95\%$
+        \item Alignment deviation $\le 1$ sentence
+    \end{itemize}
+    \item \textbf{Input \& Output}
+    \begin{itemize}
+        \item Input: Microphone audio (.wav, .mp3, $\ge 16$ kHz), script file (.txt)
+        \item Output: Real-time highlighted script text and STT logs
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Session length $\le 60$ min
+        \item STT throughput $\ge 50$ words/s
+        \item API cost $\approx \$0.006$/min
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Automatic Slide Transition}
+Through the Microsoft PowerPoint COM API, slides are automatically advanced when the script reaches predefined transition points.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Transition latency $\le 0.5$ s
+        \item Transition accuracy $\ge 95\%$
+        \item Failure rate $\le 5\%$
+    \end{itemize}
+    \item \textbf{Input \& Output}
+    \begin{itemize}
+        \item Input: Slide file (.pptx), predefined transition IDs
+        \item Output: Automatically advanced slide display
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Max 100 slides
+        \item Requires PowerPoint 2016 or later
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Flexible Speech-to-Script Matching}
+The system maintains synchronization even when speech deviates lexically from the script. Primary matching uses KoSentence-BERT vector similarity (threshold $\ge 0.8$), followed by secondary LLM-based contextual verification if necessary.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Matching success rate $\ge 90\%$
+        \item False match rate $\le 5\%$
+        \item Matching latency $\le 0.3$ s per sentence
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item LLM call limit $\le 1$ per second
+        \item STT buffering $\le 5$ s
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Key Content Omission Detection}
+Detects missing predefined key phrases using cosine similarity (threshold $\ge 0.75$) and alerts the presenter within 3 seconds.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Detection precision $\ge 95\%$
+        \item Alert delay $\le 2$ s
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Max 500 sentences compared
+        \item STT buffering interval: 5 s
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Real-time Script Reconstruction}
+When omissions are detected, missing segments are asynchronously sent to an LLM that generates supplementary sentences within 5 seconds. Approved sentences are integrated into the script in real time.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}
+    \begin{itemize}
+        \item Supplement generation $\le 5$ s
+        \item Contextual coherence $\ge 90\%$
+    \end{itemize}
+    \item \textbf{Constraints}
+    \begin{itemize}
+        \item Max 10 API calls per minute
+        \item Sentence length $\le 100$ characters
+    \end{itemize}
+\end{itemize}
+
+\subsubsection{Real-time Presenter Dashboard}
+Visualizes metrics such as WPM, voice volume, and progress rate. Uses TensorFlow Lite for emotion recognition.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Visualization accuracy $\ge 95\%$
+    \item \textbf{Constraints}: Dashboard latency $\le 1$ s
+\end{itemize}
+
+\subsubsection{Speech Gesture Suggestions}
+Analyzes slide images with a multimodal LLM to map key visual elements to keywords. Displays gesture icons on the teleprompter.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Gesture relevance $\ge 85\%$
+    \item \textbf{Constraints}: Display duration: 2--3 s
+\end{itemize}
+
+\subsubsection{Real-Time Context and Intent Tagging}
+Analyzes STT text to classify intent (General comment, Idea proposal, Decision, Request/Action Item, Fact-check request).
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Intent classification accuracy $\ge 85\%$
+    \item \textbf{Constraints}: Classification latency $\le 0.5$ s
+\end{itemize}
+
+\subsubsection{Real-Time Agenda Map}
+Builds a real-time agenda map on Screen 2 based on tagged utterance streams.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Active topic clearly highlighted.
+    \item \textbf{Constraints}: Graph update interval $\le 2$s.
+\end{itemize}
+
+\subsubsection{Dual-Screen Synchronization}
+Keeps Screen 1 and Screen 2 synchronized while respecting privacy.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Latency $\le 0.5$ s. No private elements on Screen 2.
+    \item \textbf{Constraints}: WebSocket synchronization interval $\le 1$s.
+\end{itemize}
+
+\subsubsection{Real-time Decisions and Action Item Widget}
+Captures utterances tagged as decision/action item and surfaces them on Screen 2.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Detection coverage $\ge 90\%$.
+    \item \textbf{Constraints}: Max 100 items per session.
+\end{itemize}
+
+\subsubsection{Real-Time Fact-Check and Research Widget}
+Triggers a lightweight research pipeline (RAG or web search) upon detecting a Fact-check request tag.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Research results displayed within 5 seconds.
+    \item \textbf{Constraints}: Max 30 fact-check queries per session.
+\end{itemize}
+
+\subsection{Post-Presentation Phase}
+\subsubsection{Q\&A Auto-Response}
+Uses RAG to generate candidate answers for Q\&A sessions.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Answer generation $\le 5$ s, Relevance score $\ge 0.85$.
+    \item \textbf{Constraints}: Max 20 questions per session.
+\end{itemize}
+
+\subsubsection{Presentation and Meeting Analysis Report}
+Generates a Meeting Summary Report after the session.
+\begin{itemize}
+    \item \textbf{Acceptance Criteria}: Report generation $\le 10$ s.
+    \item \textbf{Constraints}: Max 100,000 words processed.
+\end{itemize}
+
+\section{Version Control System}
+To manage source code and documentation, a version control system based on \textbf{Git} was established. A public repository named ``\textbf{ai-assistant-for-presentation}'' was created on \textbf{GitHub}. All team members have access, and an efficient branch management strategy is adopted.
+
+\section{Development Environment}
+
+\subsection{Choice of Software Development Platform}
+The project adopts a web-based client--server architecture.
+\begin{itemize}
+    \item \textbf{Platform Selection}: Web environment ensures platform-independent accessibility.
+    \item \textbf{Languages}:
+    \begin{itemize}
+        \item \textbf{Backend}: Python (3.11+) with FastAPI for asynchronous API/WebSocket. Includes `python-pptx`, `sentence-transformers`.
+        \item \textbf{Frontend}: TypeScript/JavaScript (Node.js 20+) with React 18.2.
+    \end{itemize}
+\end{itemize}
+
+\subsection{Cost Estimation}
+Estimated total development cost: approx. USD 30.00.
+\begin{itemize}
+    \item Hardware: Personal laptops (USD 0.00)
+    \item Software/IDE: VS Code (Free), Cursor Pro (USD 20/mo)
+    \item Cloud APIs: AWS Free Tier, GCP STT/Vision, OpenAI (approx. USD 10)
+\end{itemize}
+
+\subsection{Task Distribution}
+\begin{table}[htbp]
+\caption{Task Distribution}
+\begin{center}
+\begin{tabular}{p{0.15\textwidth} p{0.12\textwidth} p{0.16\textwidth}}
+\hline
+\textbf{Role} & \textbf{Members} & \textbf{Responsibilities} \\
+\hline \hline
+Backend Development & Sangyoon Kwon, Dohoon Kim & System architecture, FastAPI, WebSocket, Database (PostgreSQL), AI logic integration. \\
+\hline
+Frontend Development & Hyeyun Kwon, Seohyun Kim & React UI, Client-side state, Web Audio API, TensorFlow.js integration. \\
+\hline
+Project Management & Daeun Lee, Minhyuk Jang & Planning, UI/UX (Figma), Documentation, Testing. \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Specification}
+
+\subsection{Requirement 1. Real-Time Teleprompter}
+Tight coordinated real-time loop between client (Web) and server (Python) via WebSocket.
+\begin{enumerate}
+    \item \textbf{Client Initialization}: Requests mic access (`getUserMedia`), establishes WebSocket connection.
+    \item \textbf{Client-Side Audio Streaming}: `ScriptProcessorNode` sends raw audio buffers (PCM) to backend.
+    \item \textbf{Server-Side STT}: Backend streams audio to Google Cloud STT. Returns interim/final transcripts. Calls `FlexibleSpeechMatcher`.
+    \item \textbf{Server Broadcast}: Sends `{ "action": "UPDATE_TELEPROMPTER", "index": ... }`.
+    \item \textbf{Client Update}: Scrolls teleprompter to current index.
+\end{enumerate}
+
+\subsection{Requirement 2. Flexible Speech-to-Script Matching}
+Hybrid matching mechanism: Fast vector similarity + Fallback LLM validation.
+
+\begin{figure}[htbp]
+\centering
+\fbox{
+\begin{minipage}{0.95\columnwidth}
+\textbf{Pseudocode Overview}
+\begin{verbatim}
+SIMILARITY_THRESHOLD = 0.75
+SEARCH_WINDOW = 5
+LLM_VALIDATION_THRESHOLD = 0.60
+
+Function FindCurrentPosition(fullTranscript, 
+                             scriptSentences, lastIndex):
+  latestTranscript = GetLastNWords(fullTranscript, 10)
+  transcriptVector = KoSentenceBERT.encode(latestTranscript)
+  
+  searchStart = lastIndex
+  searchEnd = min(lastIndex + SEARCH_WINDOW, 
+                  len(scriptSentences))
+  searchWindow = scriptSentences[searchStart : searchEnd]
+  
+  bestMatchIndex = -1
+  highestSimilarity = 0
+  
+  # Step 1: Fast vector similarity
+  for index, sentence in enumerate(searchWindow):
+    similarity = CosineSimilarity(transcriptVector, 
+                                  sentence.vector)
+    if similarity > highestSimilarity:
+       highestSimilarity = similarity
+       bestMatchIndex = searchStart + index
+
+  # Step 2: Omission check
+  if bestMatchIndex > lastIndex:
+     CheckForOmissions(lastIndex, bestMatchIndex, 
+                       scriptSentences)
+
+  if highestSimilarity >= SIMILARITY_THRESHOLD:
+     return bestMatchIndex
+
+  # Step 3: LLM fallback validation
+  if highestSimilarity >= LLM_VALIDATION_THRESHOLD:
+     prompt = CreateLLMPrompt(latestTranscript, 
+                              searchWindow)
+     AsyncCallLLM(prompt, HandleLLMResult)
+     return bestMatchIndex
+     
+  return lastIndex
+\end{verbatim}
+\end{minipage}
+}
+\caption{Flexible Speech-to-Script Matching Algorithm}
+\end{figure}
+
+\subsection{Requirement 3. Key Content Omission Detection}
+\begin{enumerate}
+    \item \textbf{Database}: Sentences marked with `isKeyPhrase`.
+    \item \textbf{Server-Side Detection}: When index jumps, `CheckForOmissions()` scans skipped sentences.
+    \item \textbf{Omission Logic}: If `isKeyPhrase == true` in skipped section, broadcast `OMISSION_DETECTED`.
+    \item \textbf{Client Notification}: Visual warning (flashing red). Triggers reconstruction.
+\end{enumerate}
+
+\subsection{Requirement 4. Real-Time Script Reconstruction}
+\begin{enumerate}
+    \item \textbf{Trigger}: `HandleOmissionAsynchronously()`.
+    \item \textbf{Prompt Generation}: Combines omitted sentence and context. Request bridging sentence from LLM.
+    \item \textbf{Delivery}: Sends `SCRIPT_SUGGESTION` to client.
+    \item \textbf{Client Behavior}: User sees "Do you approve?" alert.
+\end{enumerate}
+
+\end{document}
