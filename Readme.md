@@ -2,7 +2,7 @@
 # 프로젝트 문서
 
 문서 전문은 아래 PDF에서 보실 수 있습니다:
-[프로젝트 개요 PDF](SE_Assignment2_G12.pdf)
+[프로젝트 개요 PDF](SE_Assignment2_G12_회의포함.pdf)
 # FoS (Focus on Speaking)
 
 LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.  
