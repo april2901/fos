@@ -41,4 +41,4 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 - `docs/fos_paper.tex`: IEEE conference template 기반 프로젝트 논문
 - PDF 빌드는 로컬 TeX 환경 또는 Overleaf에서 수행합니다.
 
-[![PDF 썸네일](screen.png)]
+[![PDF 썸네일](screen1.png)]
