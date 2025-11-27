@@ -14,9 +14,4 @@ Focus on Speaking App UI
 
     npm run dev  
 
-    터미널에 표시되는 주소 (예: http://localhost:5173)를 브라우저에서 열면 됩니다.
-
-3. 프로덕션 빌드 및 미리보기  
-
-    npm run build  
-    npm run preview
+    터미널에 표시되는 주소 (예: http://localhost:3000)를 브라우저에서 열면 됩니다.
