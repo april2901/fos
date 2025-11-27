@@ -960,6 +960,27 @@ management, user testing and feedback analysis \\
 
 \section{\texorpdfstring{\textbf{Specification}}{Specification}}\label{specification}
 
+\subsection{System Architecture Overview}
+
+The overall system architecture is illustrated in Figure 1. The diagram shows the flow of data from user input through the frontend (React), backend (API Routes), external services (Gemini), and database (Supabase/PostgreSQL).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.9\textwidth]{architecture_diagram.png}
+\caption{System Architecture Diagram}
+\label{fig:architecture}
+\end{figure}
+
+The architecture consists of six main components:
+\begin{enumerate}
+\item User voice input captured through Web Speech API
+\item Frontend (React) for user interface
+\item Backend (API Routes) for business logic
+\item External AI services (Gemini) for intelligent processing
+\item Database management through Supabase
+\item PostgreSQL database for persistent storage
+\end{enumerate}
+
 \subsubsection{\texorpdfstring{\textbf{Requirement 1. Real-Time
 Teleprompter}}{Requirement 1. Real-Time Teleprompter}}\label{requirement-1.-real-time-teleprompter}
 
