@@ -5,7 +5,7 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 발표/회의 전·중·후 전 과정을 지원하는 실시간 텔레프롬프터 & 회의 보조 시스템을 구현합니다.<br><br>
 **실제 서비스는 Vercel을 통해 배포되어 있으며, 아래 주소에서 이용이 가능합니다.**<br>
 **[https://focusonspeaking.vercel.app/](https://focusonspeaking.vercel.app/)**
-![페이지사진](webscreenshot.png)
+![페이지사진](docs/webscreenshot.png)
 ## 1. Project Overview
 
 - 실시간 STT(Speech-to-Text) 기반 텔레프롬프터
@@ -22,7 +22,7 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 2. Tech Stack
 
-![페이지사진](architecture_diagram.png)
+![페이지사진](docs/architecture_diagram.png)
 
 ## 3. Repository Structure
 
@@ -32,5 +32,5 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 4. Paper
 
-[프로젝트 개요 PDF](SE_Assignment2_G12_1.pdf)
-[![PDF 썸네일](screenshot1.png)]
+[프로젝트 개요 PDF](docs/SE_Assignment2_G12.pdf)
+[![PDF 썸네일](docs/screenshot1.png)]
