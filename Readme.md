@@ -1,8 +1,4 @@
 
-# 프로젝트 문서
-
-전체 PDF는 아래에서 확인가능합니다.
-[프로젝트 개요 PDF](SE_Assignment2_G12.pdf)
 # FoS (Focus on Speaking)
 
 LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.  
@@ -36,7 +32,5 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 4. Paper
 
-- `docs/fos_paper.tex`: IEEE conference template 기반 프로젝트 논문
-- PDF 빌드는 로컬 TeX 환경 또는 Overleaf에서 수행합니다.
 [프로젝트 개요 PDF](SE_Assignment2_G12_1.pdf)
 [![PDF 썸네일](screenshot1.png)]
