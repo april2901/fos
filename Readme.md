@@ -24,8 +24,8 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 ![페이지사진](docs/architecture_diagram.png)
 
 ## 3. Repository Structure
-
-[structure.md의 설명을 참고해주세요.](docs/structure.md)
+structure.md의 내용을 참고해주세요.
+[structure.md](docs/structure.md)
 
 
 ## 4. Paper
