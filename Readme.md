@@ -1,7 +1,7 @@
 
 # 프로젝트 문서
 
-문서 전문은 아래 링크에서 보실 수 있습니다:
+전체 PDF는 아래에서 확인가능합니다.
 [프로젝트 개요 PDF](SE_Assignment2_G12.pdf)
 # FoS (Focus on Speaking)
 
@@ -28,11 +28,10 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ![페이지사진](ar.png)
 
-## 3. Repository Structure (예시)
+## 3. Repository Structure
 
 - `frontend/` – React 기반 웹 클라이언트
 - `backend/` – FastAPI 기반 서버 및 STT/LLM 연동
-- `docs/` – 프로젝트 문서 및 LaTeX 논문 (`fos_paper.tex`)
 - `README.md` – 현재 문서
 
 ## 4. Paper
