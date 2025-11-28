@@ -1,4 +1,3 @@
-
 # FoS (Focus on Speaking)
 
 LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.  

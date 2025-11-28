@@ -1,0 +1,20 @@
+{
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/build",
+  "framework": "vite",
+  "devCommand": "cd frontend && npm run dev -- --port $PORT",
+  "rewrites": [
+    {
+      "source": "/api/speech-comparison",
+      "destination": "/api/speech-comparison.ts"
+    },
+    {
+      "source": "/api/llm-test",
+      "destination": "/api/llm-test.ts"
+    },
+    {
+      "source": "/api/extract-keywords",
+      "destination": "/api/extract-keywords.ts"
+    }
+  ]
+}
