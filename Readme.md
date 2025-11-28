@@ -25,9 +25,8 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 3. Repository Structure
 
-- `frontend/` – React 기반 웹 클라이언트
-- `backend/` – FastAPI 기반 서버 및 STT/LLM 연동
-- `README.md` – 현재 문서
+[structure.md의 설명을 참고해주세요.](docs/structure.md)
+
 
 ## 4. Paper
 
