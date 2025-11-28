@@ -1,4 +1,3 @@
-# 프레젠테이션 프롬프터 - 백엔드/프론트엔드 분리 설정 가이드
 
 ## 프로젝트 구조
 
@@ -19,51 +18,7 @@ project/
 └── package.json                 # 루트 package.json
 ```
 
-## 설치 방법
 
-### 1. 의존성 설치
-
-```bash
-npm install
-cd frontend && npm install
-```
-
-또는 한 번에:
-
-```bash
-npm run install-all
-```
-
-### 2. 환경변수 설정
-
-`.env.local` 니일을 루트에 생성하고 다음을 추가:
-
-```env
-GEMINI_API_KEY=your-gemini-api-key-here
-```
-
-> Gemini API 키는 https://aistudio.google.com/app/apikey 에서 발급받으세요
-
-### 3. 로컬 개발
-
-서버 실행을 위해 vercel을 설치합니다.
-```bash
-# vercel cli 설치
-npm i -g vercel
-```
-백엔드용 터미널과 프론트엔드용 터미널을 각각 실행합니다.
-```bash
-# 백엔드 개발 서버 실행 (포트 3000)
-vercel dev
-```
-
-```bash
-# 프론트엔드 폴더로 이동하여 개발 서버 실행 (포트 5173)
-cd frontend
-npm run dev
-```
-http://localhost:5173 를 통해 테스트 할 수 있습니다.
-프론트엔드는 자동으로 /api/* 요청을 localhost:3000로 프록시합니다.
 
 ## API 엔드포인트
 
@@ -111,26 +66,6 @@ http://localhost:5173 를 통해 테스트 할 수 있습니다.
 }
 ```
 
-## Vercel 배포
-
-### 1. Vercel 계정 연결
-
-```bash
-npm i -g vercel
-vercel login
-```
-
-### 2. 환경변수 설정
-
-Vercel 대시보드에서 프로젝트 설정 → Environment Variables:
-
-- `GEMINI_API_KEY`: Gemini API 키
-
-### 3. 배포
-
-```bash
-vercel deploy --prod
-```
 
 ## 프론트엔드에서 API 호출
 
