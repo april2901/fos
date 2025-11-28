@@ -187,3 +187,17 @@
 html {
   font-size: var(--font-size);
 }
+
+/* 4:3 비율 고정 및 스크롤 방지 */
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #000; /* 레터박스(검은 여백) 색상 */
+}
+
+#root {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}

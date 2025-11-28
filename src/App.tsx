@@ -179,7 +179,19 @@ export default function App() {
   };
 
   return (
-    <div className="w-[1440px] h-[900px] mx-auto bg-white">
+    <div 
+      className="bg-white overflow-hidden"
+      style={{
+        width: 'min(100vw, 133.33vh)',
+        height: 'min(100vh, 75vw)',
+        aspectRatio: '4 / 3',
+        margin: 'auto',
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+      }}
+    >
       {renderScreen()}
     </div>
   );
