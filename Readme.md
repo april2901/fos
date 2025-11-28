@@ -7,6 +7,7 @@ The live service is deployed on Vercel:
 https://focusonspeaking.vercel.app/
 
 ![Web screenshot](docs/webscreenshot.png)
+<img width="1280" height="710" alt="스크린샷 2025-11-28 오후 1 35 12" src="https://github.com/user-attachments/assets/d0744cc0-95cb-46b2-8f64-c4c90bcaa2bb" />
 
 ## 1. Project Overview
 
