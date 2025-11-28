@@ -26,10 +26,7 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 2. Tech Stack
 
-- **Backend**: Python 3.11+, FastAPI, WebSocket
-- **Frontend**: React 18, TypeScript, Web Audio API, TensorFlow.js
-- **AI / ML**: Google Cloud STT, sentence-transformers, LLM(API)
-- **Infra**: AWS (EC2, S3, RDS), GCP (STT, Vision API)
+![페이지사진](ar.png)
 
 ## 3. Repository Structure (예시)
 
