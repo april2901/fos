@@ -17,7 +17,7 @@ type ScreenType =
   | 'agenda'
   | 'summary';
 
-// 아젠다 노드 타입 (AgendaNode.tsx 의 type 과 동일하게 맞춤)
+// 아젠다 노드 타입
 export type AgendaItemType =
   | 'research'
   | 'idea'
@@ -27,13 +27,38 @@ export type AgendaItemType =
   | 'general'
   | 'question'
   | 'negative'
-  | 'positive';
+  | 'positive'
+  | '리서치'
+  | '아이디어'
+  | '개발'
+  | '디자인'
+  | '일반';
 
 export interface AgendaItem {
-  id: string;          // 노드 고유 ID (UUID 또는 timestamp 등)
-  text: string;        // 노드 텍스트
+  id: string;
+  text: string;
   type: AgendaItemType;
-  isRoot?: boolean;    // 루트 노드 여부 (옵션)
+  isRoot?: boolean;
+}
+
+// 아젠다 맵 데이터 타입
+export interface AgendaNodeData {
+  id: number;
+  label: string;
+  category: string;
+  timestamp?: string;
+  summary?: string;
+  transcript?: string;
+}
+
+export interface AgendaEdgeData {
+  from: number;
+  to: number;
+}
+
+export interface AgendaMapData {
+  nodes: AgendaNodeData[];
+  edges: AgendaEdgeData[];
 }
 
 export default function App() {
@@ -47,6 +72,12 @@ export default function App() {
 
   // 아젠다(논점 지도) 공통 상태
   const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
+  
+  // 아젠다 맵 데이터 상태
+  const [agendaMapData, setAgendaMapData] = useState<AgendaMapData>({
+    nodes: [],
+    edges: [],
+  });
 
   // 메인으로 돌아갈 때 전체 상태 정리
   const navigateToMain = () => {
@@ -55,7 +86,8 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
-    setAgendaItems([]); // 회의/아젠다 리셋
+    setAgendaItems([]);
+    setAgendaMapData({ nodes: [], edges: [] });
   };
 
   // Back navigation logic based on screen flow
@@ -71,17 +103,14 @@ export default function App() {
         setCurrentScreen('setup');
         break;
       case 'agenda':
-        // If coming from presentation, go back to teleprompter with modal
         if (hasPresentation) {
           setCurrentScreen('teleprompter');
           setShowEndModal(true);
         } else {
-          // If standalone meeting, go to main
           setCurrentScreen('main');
         }
         break;
       case 'summary':
-        // 요약 → 다시 논점 지도
         setCurrentScreen('agenda');
         break;
       default:
@@ -98,11 +127,11 @@ export default function App() {
         return (
           <MainScreen
             onStartMeeting={() => {
-              // 발표 없이 바로 회의 시작
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
-              setAgendaItems([]); // 새 회의이므로 아젠다 초기화
+              setAgendaItems([]);
+              setAgendaMapData({ nodes: [], edges: [] });
               setCurrentScreen('agenda');
             }}
             onStartPresentation={() => setCurrentScreen('setup')}
@@ -136,10 +165,10 @@ export default function App() {
             {showEndModal && (
               <EndPresentationModal
                 onStartMeeting={() => {
-                  // 발표 끝 → 회의로 전환
                   setShowEndModal(false);
                   setHasPresentation(true);
-                  setAgendaItems([]); // 새 회의 시작이므로 아젠다 초기화
+                  setAgendaItems([]);
+                  setAgendaMapData({ nodes: [], edges: [] });
                   setCurrentScreen('agenda');
                 }}
                 onFinish={() => {
@@ -157,7 +186,9 @@ export default function App() {
             hasPresentation={hasPresentation}
             presentationTitle={presentationTitle}
             agendaItems={agendaItems}
-            onAgendaItemsChange={setAgendaItems} // 실시간 입력/노드 생성은 여기로
+            onAgendaItemsChange={setAgendaItems}
+            agendaMapData={agendaMapData}
+            onAgendaMapDataChange={setAgendaMapData}
             onEnd={() => setCurrentScreen('summary')}
             onHomeClick={navigateToMain}
             onBack={handleBack}
@@ -167,7 +198,7 @@ export default function App() {
       case 'summary':
         return (
           <MeetingSummaryScreen
-            agendaItems={agendaItems}      // 논점 지도 결과를 요약 화면에서도 사용
+            agendaMapData={agendaMapData}
             onBackToMain={navigateToMain}
             onBack={handleBack}
           />
