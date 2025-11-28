@@ -11,13 +11,13 @@ https://focusonspeaking.vercel.app/
 
 ## 1. Project Overview
 
-- Real-time teleprompter based on STT (Speech-to-Text)
+- **Real-time teleprompter** based on STT (Speech-to-Text)
 - Script–speech synchronization with flexible matching (KoSentence-BERT + LLM)
 - Keyword omission detection and real-time script completion suggestions
 - Presenter dashboard (speed, progress, basic emotion/attention estimation)
-- Meeting mode:
+- **Agenda Map**(Meeting mode):
   - Real-time intent tagging of utterances (idea, decision, action item, question, etc.)
-  - Agenda map visualization
+  - Agenda map visualization the main topic of each meeting.
   - Decision / Action Item widget
   - Fact-check widget (RAG / web search based)
 
