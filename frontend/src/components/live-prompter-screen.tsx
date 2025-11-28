@@ -1,4 +1,4 @@
-import { useState, useEffect,useRef, useCallback} from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "./ui/button";
 import { Card } from "./ui/card";
 import { Mic } from "lucide-react";
@@ -41,6 +41,7 @@ declare global {
 interface LivePrompterScreenProps {
   onShowToast: (type: "info" | "success" | "warning" | "error", message: string) => void;
   script: string;
+  keywords: string[];
   fontSize: number;
   scrollSpeed: number;
   onFontSizeChange: (value: number) => void; // 글자 크기를 변경하는 함수를 받음
@@ -69,19 +70,20 @@ const defaultScriptParagraphs = [
   },
 ];
 
-export function LivePrompterScreen({ 
-  onShowToast, 
-  script, 
-  fontSize, 
-  scrollSpeed, 
-  onFontSizeChange 
-}: LivePrompterScreenProps)  {
+export function LivePrompterScreen({
+  onShowToast,
+  script,
+  keywords: keywordsProp,
+  fontSize,
+  scrollSpeed,
+  onFontSizeChange
+}: LivePrompterScreenProps) {
   const { compareSpeech, isLoading: apiLoading } = useApiClient();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [isInverted, setIsInverted] = useState(false);
   const [lastTranscript, setLastTranscript] = useState("");
-  
+
   // Real-time dashboard metrics
   const [timeDelta, setTimeDelta] = useState(0); // in seconds, + means ahead, - means behind
   const [volumeHistory, setVolumeHistory] = useState<number[]>(Array(100).fill(75)); // 10 seconds at 10fps = 100 samples
@@ -99,36 +101,38 @@ export function LivePrompterScreen({
   }, [isPlaying]);
 
   const [scriptParagraphs, setScriptParagraphs] = useState(defaultScriptParagraphs);
-  
-  // Keywords state
-  const [keywords, setKeywords] = useState([
-    { id: 1, text: "신제품 비전", checked: false },
-    { id: 2, text: "핵심 기능 소개", checked: true },
-    { id: 3, text: "경쟁사 비교", checked: false },
-    { id: 4, text: "가격 정책", checked: false },
-  ]);
-/*
-  const scriptParagraphs = [
-    {
-      id: 1,
-      text: "안녕하십니까 여러분. 오늘 이 자리에서 우리의 혁신적인 신제품을 소개하게 되어 매우 기쁩니다. 이 제품은 지난 2년간의 연구개발 끝에 탄생했으며, 업계의 패러다임을 완전히 바꿀 것입니다.",
-      slideNumber: 1,
-      recommendedTime: 15, // seconds
-    },
-    {
-      id: 2,
-      text: "먼저 시장 현황을 살펴보겠습니다. 현재 시장은 급격한 변화를 겪고 있으며, 고객들의 니즈 또한 다양해지고 있습니다. 우리 제품은 바로 이러한 변화에 대응하기 위해 설계되었습니다.",
-      slideNumber: 2,
-      recommendedTime: 12,
-    },
-    {
-      id: 3,
-      text: "핵심 기능을 소개하겠습니다. 첫째, 인공지능 기반 자동화로 생산성이 3배 향상됩니다. 둘째, 직관적인 인터페이스로 누구나 쉽게 사용할 수 있습니다. 셋째, 클라우드 동기화로 언제 어디서나 작업이 가능합니다.",
-      slideNumber: 3,
-      recommendedTime: 18,
-    },
-  ];
-*/
+
+  // Keywords state - convert string[] to object with id and checked
+  const [keywords, setKeywords] = useState(
+    keywordsProp.map((text, index) => ({ id: index + 1, text, checked: false }))
+  );
+
+  // Update keywords when prop changes
+  useEffect(() => {
+    setKeywords(keywordsProp.map((text, index) => ({ id: index + 1, text, checked: false })));
+  }, [keywordsProp]);
+  /*
+    const scriptParagraphs = [
+      {
+        id: 1,
+        text: "안녕하십니까 여러분. 오늘 이 자리에서 우리의 혁신적인 신제품을 소개하게 되어 매우 기쁩니다. 이 제품은 지난 2년간의 연구개발 끝에 탄생했으며, 업계의 패러다임을 완전히 바꿀 것입니다.",
+        slideNumber: 1,
+        recommendedTime: 15, // seconds
+      },
+      {
+        id: 2,
+        text: "먼저 시장 현황을 살펴보겠습니다. 현재 시장은 급격한 변화를 겪고 있으며, 고객들의 니즈 또한 다양해지고 있습니다. 우리 제품은 바로 이러한 변화에 대응하기 위해 설계되었습니다.",
+        slideNumber: 2,
+        recommendedTime: 12,
+      },
+      {
+        id: 3,
+        text: "핵심 기능을 소개하겠습니다. 첫째, 인공지능 기반 자동화로 생산성이 3배 향상됩니다. 둘째, 직관적인 인터페이스로 누구나 쉽게 사용할 수 있습니다. 셋째, 클라우드 동기화로 언제 어디서나 작업이 가능합니다.",
+        slideNumber: 3,
+        recommendedTime: 18,
+      },
+    ];
+  */
   useEffect(() => {
     if (script) {
       const paragraphs = script.split('\n').filter(p => p.trim() !== '').map((p, index) => ({ id: index + 1, text: p.trim(), slideNumber: index + 1, recommendedTime: 15 }));
@@ -139,7 +143,7 @@ export function LivePrompterScreen({
         setScriptParagraphs(defaultScriptParagraphs);
       }
     } else {
-        setScriptParagraphs(defaultScriptParagraphs);
+      setScriptParagraphs(defaultScriptParagraphs);
     }
   }, [script]);
 
@@ -202,7 +206,7 @@ export function LivePrompterScreen({
           interimTranscript += event.results[i][0].transcript;
         }
       }
-      
+
       const transcript = (finalTranscript || interimTranscript).trim();
       if (transcript === "") return;
 
@@ -233,23 +237,23 @@ export function LivePrompterScreen({
       }
     };
   }, [onShowToast]); // 의존성 배열 최소화
-/*
-  useEffect(() => {
-    if (isPlaying) {
-      const interval = setInterval(() => {
-        setCurrentWordIndex((prev) => {
-          if (prev >= allWords.length - 1) {
-            setIsPlaying(false);
-            onShowToast("success", "발표가 완료되었습니다");
-            return prev;
-          }
-          return prev + 1;
-        });
-      }, 500);
-      return () => clearInterval(interval);
-    }
-  }, [isPlaying, allWords.length, onShowToast]);
-*/
+  /*
+    useEffect(() => {
+      if (isPlaying) {
+        const interval = setInterval(() => {
+          setCurrentWordIndex((prev) => {
+            if (prev >= allWords.length - 1) {
+              setIsPlaying(false);
+              onShowToast("success", "발표가 완료되었습니다");
+              return prev;
+            }
+            return prev + 1;
+          });
+        }, 500);
+        return () => clearInterval(interval);
+      }
+    }, [isPlaying, allWords.length, onShowToast]);
+  */
 
   const handlePlayPause = async () => {
     const recognition = recognitionRef.current;
@@ -311,7 +315,7 @@ export function LivePrompterScreen({
     const wasPlaying = isPlaying;
     setIsPlaying(false);
     await new Promise(resolve => setTimeout(resolve, 50));
-    
+
     // 재생 중이었을 때만 recognition.stop() 호출
     if (wasPlaying) {
       try {
@@ -324,7 +328,7 @@ export function LivePrompterScreen({
       // 이미 멈춰있는 경우 플래그만 초기화
       isStoppingRef.current = false;
     }
-    
+
     setCurrentWordIndex(0);
     onShowToast("info", "발표가 중지되고 처음으로 돌아갔습니다.");
   };
@@ -349,31 +353,31 @@ export function LivePrompterScreen({
         const progressInPara = totalWords > 0 ? wordsInPara / totalWords : 0;
         const elapsedTime = progressInPara * para.recommendedTime;
         const remainingRecommendedTime = para.recommendedTime - elapsedTime;
-        
+
         // Simulate actual remaining time with some variance
         setTimeDelta((prev) => {
           const variance = (Math.random() - 0.5) * 1;
           return Math.max(-10, Math.min(10, remainingRecommendedTime + variance - 5));
         });
-        
+
         // Simulate volume with 10-second averaging
         setVolumeHistory((prev) => {
           const newVolume = 60 + Math.random() * 30;
           const updated = [...prev.slice(1), newVolume];
-          
+
           // Calculate 10-second average (last 100 samples)
           const avg = updated.reduce((a, b) => a + b, 0) / updated.length;
           setAvgVolume(avg);
-          
+
           // Detect sudden spike (more than 20 above average)
           if (newVolume > avg + 20) {
             setIsVolumeSpiking(true);
             setTimeout(() => setIsVolumeSpiking(false), 2000);
           }
-          
+
           return updated;
         });
-        
+
         // Update pronunciation only at sentence boundaries (ends with . ? !)
         const currentText = allWords.slice(0, currentWordIndex + 1).join(" ");
         const lastChar = currentText.trim().slice(-1);
@@ -383,7 +387,7 @@ export function LivePrompterScreen({
           setPronunciationHistory((prev) => [...prev.slice(1), newScore]);
         }
       }, 100);
-      
+
       return () => clearInterval(metricsInterval);
     }
   }, [isPlaying, currentWordIndex, scriptParagraphs]);
@@ -408,44 +412,44 @@ export function LivePrompterScreen({
     }
 
     const phrases: { text: string; wordCount: number }[] = [];
-    
+
     // 1차: 문장 부호(. ! ?)로 문장 구분
     const sentencePattern = /([^.!?]+[.!?])/g;
     const sentenceMatches = text.match(sentencePattern) || [text];
-    
+
     sentenceMatches.forEach((sentence) => {
       const trimmedSentence = sentence.trim();
       if (!trimmedSentence) return;
-      
+
       // 문장 부호 분리
       const punctuationMatch = trimmedSentence.match(/([.!?]+)$/);
       const punctuation = punctuationMatch ? punctuationMatch[0] : "";
-      const sentenceWithoutPunc = punctuation 
+      const sentenceWithoutPunc = punctuation
         ? trimmedSentence.slice(0, -punctuation.length).trim()
         : trimmedSentence;
-      
+
       const words = sentenceWithoutPunc.split(/\s+/).filter(w => w.length > 0);
       if (words.length === 0) return;
-      
+
       // 2차: 각 문장 내에서 조사 기준으로 구 분할
       // 수식구를 포함한 완전한 의미 단위로 묶음
       let currentPhrase: string[] = [];
-      
+
       for (let j = 0; j < words.length; j++) {
         const word = words[j];
         currentPhrase.push(word);
-        
+
         // 조사 패턴 체크 (쉼표 제거 후 체크)
         const wordWithoutComma = word.replace(/,$/g, "");
         let hasBoundary = false;
-        
+
         // 다음 단어 확인 (보조용언 체크용)
         const nextWord = j + 1 < words.length ? words[j + 1] : "";
         const nextWordWithoutComma = nextWord.replace(/,$/g, "");
-        
+
         // 보조용언 패턴: 있으며, 있습니다, 있고, 되어, 됩니다, 드립니다 등
         const isNextAuxiliaryVerb = /^(있으며|있습니다|있고|있는|되어|됩니다|되고|드립니다|드리고|주며|주고|줍니다)/.test(nextWordWithoutComma);
-        
+
         // 2글자 이상 조사 (확실한 조사)
         if (/(은|는|을|를|에서|에게|으로|또한|조차|되어|하며)$/.test(wordWithoutComma) && wordWithoutComma.length >= 2) {
           hasBoundary = true;
@@ -460,10 +464,10 @@ export function LivePrompterScreen({
             hasBoundary = true;
           }
         }
-        
+
         // '의'는 수식구 연결자 - 끊지 않음
         const hasModifier = /의$/.test(wordWithoutComma);
-        
+
         // 조사로 끝나면 구 완성 (단, '의'는 제외)
         if (hasBoundary && !hasModifier) {
           const phraseText = currentPhrase.join(" ");
@@ -474,7 +478,7 @@ export function LivePrompterScreen({
           currentPhrase = [];
         }
       }
-      
+
       // 남은 단어들 (서술어 등) - 문장의 마지막 구에 문장부호 추가
       if (currentPhrase.length > 0) {
         const phraseText = currentPhrase.join(" ") + punctuation;
@@ -486,29 +490,28 @@ export function LivePrompterScreen({
     });
 
     let wordOffset = 0;
-    
+
     return (
       <div className="leading-relaxed">
         {phrases.map((phrase, phraseIndex) => {
           const phraseStartIndex = wordOffset;
           const phraseEndIndex = wordOffset + phrase.wordCount - 1;
           const currentLocalIndex = currentWordIndex - globalWordIndex;
-          
+
           const isHighlighted = currentLocalIndex >= phraseStartIndex && currentLocalIndex <= phraseEndIndex;
           const isPast = currentLocalIndex > phraseEndIndex;
-          
+
           wordOffset += phrase.wordCount;
-          
+
           return (
             <span
               key={phraseIndex}
-              className={`transition-all duration-200 ${
-                isHighlighted
+              className={`transition-all duration-200 ${isHighlighted
                   ? "bg-[#0064FF] text-white px-1 rounded"
                   : isPast
-                  ? "text-gray-400"
-                  : ""
-              }`}
+                    ? "text-gray-400"
+                    : ""
+                }`}
             >
               {phrase.text}{" "}
             </span>
@@ -527,8 +530,8 @@ export function LivePrompterScreen({
 
   // Toggle keyword checked state
   const toggleKeyword = (id: number) => {
-    setKeywords(prev => 
-      prev.map(keyword => 
+    setKeywords(prev =>
+      prev.map(keyword =>
         keyword.id === id ? { ...keyword, checked: !keyword.checked } : keyword
       )
     );
@@ -560,10 +563,10 @@ export function LivePrompterScreen({
             {isPlaying ? "● REC" : "■ READY"}
           </Badge>
           {isRecognizing && (
-              <Badge variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-500">
-                  <Mic className="w-4 h-4 animate-pulse" />
-                  음성 인식 활성화
-              </Badge>
+            <Badge variant="outline" className="flex items-center gap-2 border-blue-500 text-blue-500">
+              <Mic className="w-4 h-4 animate-pulse" />
+              음성 인식 활성화
+            </Badge>
           )}
           <span>슬라이드 {currentParagraph.slideNumber} / {scriptParagraphs.length}</span>
         </div>
@@ -617,18 +620,16 @@ export function LivePrompterScreen({
           <Card className="mb-6">
             <div className="p-4">
               <h4 className="mb-3">실시간 모니터링</h4>
-              
+
               <div className="grid grid-cols-3 gap-2">
                 {/* Time Delta - Based on recommended time remaining */}
                 <div className="flex flex-col items-center p-2 bg-gray-50 dark:bg-white/10 rounded-lg border hover:dark:text-[#000000] transition-colors cursor-pointer">
-                  <Timer className={`w-5 h-5 mb-1 ${
-                    Math.abs(timeDelta) < 3 ? "text-green-600 dark:text-green-400" :
-                    Math.abs(timeDelta) < 7 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
-                  }`} />
-                  <span className={`text-sm ${
-                    Math.abs(timeDelta) < 3 ? "text-green-600 dark:text-green-400" :
-                    Math.abs(timeDelta) < 7 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
-                  }`}>
+                  <Timer className={`w-5 h-5 mb-1 ${Math.abs(timeDelta) < 3 ? "text-green-600 dark:text-green-400" :
+                      Math.abs(timeDelta) < 7 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+                    }`} />
+                  <span className={`text-sm ${Math.abs(timeDelta) < 3 ? "text-green-600 dark:text-green-400" :
+                      Math.abs(timeDelta) < 7 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+                    }`}>
                     {timeDelta > 0 ? "+" : ""}{timeDelta.toFixed(1)}s
                   </span>
                 </div>
@@ -643,14 +644,12 @@ export function LivePrompterScreen({
 
                 {/* Pronunciation - Sentence-based measurement */}
                 <div className="flex flex-col items-center p-2 bg-gray-50 dark:bg-white/10 rounded-lg border hover:dark:text-[#000000] transition-colors cursor-pointer">
-                  <MessageSquare className={`w-5 h-5 mb-1 ${
-                    currentSentencePronunciation >= 90 ? "text-green-600 dark:text-green-400" :
-                    currentSentencePronunciation >= 80 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
-                  }`} />
-                  <span className={`text-sm ${
-                    currentSentencePronunciation >= 90 ? "text-green-600 dark:text-green-400" :
-                    currentSentencePronunciation >= 80 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
-                  }`}>
+                  <MessageSquare className={`w-5 h-5 mb-1 ${currentSentencePronunciation >= 90 ? "text-green-600 dark:text-green-400" :
+                      currentSentencePronunciation >= 80 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+                    }`} />
+                  <span className={`text-sm ${currentSentencePronunciation >= 90 ? "text-green-600 dark:text-green-400" :
+                      currentSentencePronunciation >= 80 ? "text-yellow-600 dark:text-yellow-400" : "text-red-600 dark:text-red-400"
+                    }`}>
                     {Math.round(currentSentencePronunciation)}%
                   </span>
                 </div>
@@ -668,7 +667,7 @@ export function LivePrompterScreen({
                   <span>{scriptParagraphs.indexOf(currentParagraph) + 1} / {scriptParagraphs.length}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
+                  <div
                     className="bg-[#0064FF] h-2 rounded-full transition-all duration-300"
                     style={{ width: `${((currentWordIndex / allWords.length) * 100).toFixed(1)}%` }}
                   />

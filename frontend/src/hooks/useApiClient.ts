@@ -146,11 +146,36 @@ export function useApiClient() {
     }
   }, []);
 
+  const extractKeywords = useCallback(async (script: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`${API_BASE}/api/extract-keywords`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Keyword extraction failed");
+      }
+      return await response.json();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      setError(message);
+      console.error("Keyword extraction error:", err);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   return {
     isLoading,
     error,
     compareSpeech,
     regenerateWithLLM,
     testLLM,
+    extractKeywords,
   };
 }

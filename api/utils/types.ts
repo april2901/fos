@@ -43,3 +43,12 @@ export interface LLMTestRequest {
 export interface LLMTestResponse {
   resultText: string;
 }
+
+// Keyword Extraction Request/Response
+export interface KeywordExtractionRequest {
+  script: string;
+}
+
+export interface KeywordExtractionResponse {
+  keywords: string[];
+}

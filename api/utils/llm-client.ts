@@ -175,3 +175,78 @@ export async function llm_api_test(count: number): Promise<string> {
     throw error;
   }
 }
+
+/**
+ * Extract keywords from the script using Gemini
+ * @param script Full presentation script
+ * @returns Array of 3-5 keywords
+ */
+export async function extractKeywordsFromScript(script: string): Promise<string[]> {
+  // Load environment variables
+  const envPath = path.resolve(process.cwd(), '.env.local');
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  } else {
+    const parentEnvPath = path.resolve(process.cwd(), '../.env.local');
+    if (fs.existsSync(parentEnvPath)) {
+      dotenv.config({ path: parentEnvPath });
+    }
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error('GEMINI_API_KEY is not set');
+  }
+
+  const prompt = `
+다음 프레젠테이션 대본에서 가장 중요한 핵심 키워드 또는 주제를 3개에서 5개 사이로 추출해줘.
+결과는 오직 키워드들만 쉼표(,)로 구분해서 출력해. 다른 설명은 하지 마.
+
+[대본]
+${script.substring(0, 5000)} 
+`;
+  // Limit script length to avoid token limits if necessary, though Gemini has large context. 
+  // 5000 chars is a safe initial limit for a summary task.
+
+  const request: GeminiRequest = {
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    generationConfig: {
+      temperature: 0.3, // Lower temperature for more deterministic results
+      maxOutputTokens: 200,
+    },
+  };
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(request),
+      }
+    );
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(`Gemini API error: ${error.error?.message || 'Unknown error'}`);
+    }
+
+    const data: GeminiResponse = await response.json();
+    const text = data.candidates[0]?.content?.parts[0]?.text || '';
+
+    // Parse comma-separated keywords
+    const keywords = text.split(',').map(k => k.trim()).filter(k => k.length > 0);
+    return keywords;
+  } catch (error) {
+    console.error('Keyword extraction error:', error);
+    // Fallback keywords if API fails
+    return ['핵심 내용', '발표 주제', '주요 안건'];
+  }
+}

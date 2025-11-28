@@ -41,7 +41,11 @@ const CATEGORY_COLORS: Record<Category, any> = {
   },
 };
 
-export function FlowGraphScreen() {
+interface FlowGraphScreenProps {
+  keywords?: string[];
+}
+
+export function FlowGraphScreen({ keywords = [] }: FlowGraphScreenProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<Network | null>(null);
 
@@ -125,6 +129,44 @@ export function FlowGraphScreen() {
       selectedNodeRef.current = null;
     });
   }, [nodes, edges]);
+
+  // Auto-create nodes from keywords prop
+  useEffect(() => {
+    if (!networkRef.current || keywords.length === 0) return;
+
+    // Check if keywords have already been added to avoid duplicates
+    const existingLabels = nodes.get().map(n => n.label);
+
+    keywords.forEach((keyword, index) => {
+      const label = `아이디어\n${keyword}`;
+
+      // Skip if already exists
+      if (existingLabels.some(l => l.includes(keyword))) return;
+
+      const id = ++nodeCounterRef.current;
+      const color = CATEGORY_COLORS["아이디어"];
+
+      nodes.add({
+        id,
+        label,
+        color: {
+          background: color.background,
+          border: color.border,
+          highlight: {
+            background: color.highlightBackground,
+            border: color.highlightBorder,
+          },
+        },
+      });
+
+      // Connect to root or previous keyword node
+      const fromId = index === 0 ? 1 : nodeCounterRef.current - 1;
+      edges.add({ from: fromId, to: id });
+    });
+
+    // Force re-render to update node count
+    forceRender({});
+  }, [keywords, nodes, edges]);
 
   const addNode = () => {
     const text = keyword.trim();

@@ -8,6 +8,7 @@ import {
   ToastContainer,
   Toast,
 } from "./components/glass-toast";
+import { useApiClient } from "./hooks/useApiClient";
 import { DashboardScreen } from "./components/dashboard-screen";
 import { PreparationScreen } from "./components/preparation-screen";
 import { LivePrompterScreen } from "./components/live-prompter-screen";
@@ -16,7 +17,7 @@ import { ReportScreen } from "./components/report-screen";
 import { SettingsScreen } from "./components/settings-screen";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./components/ui/button";
-import { FlowGraphScreen } from "./components/flow-graph"; 
+import { FlowGraphScreen } from "./components/flow-graph";
 
 export default function App() {
   const screens = [
@@ -33,6 +34,8 @@ export default function App() {
 
 
   const [script, setScript] = useState(""); // 대본 텍스트 저장 변수
+  const [keywords, setKeywords] = useState<string[]>([]); // 추출된 키워드
+  const { extractKeywords } = useApiClient();
 
 
   const [currentProject, setCurrentProject] =
@@ -52,11 +55,24 @@ export default function App() {
       return (saved as "light" | "dark" | "auto") || "light";
     },
   );
-    
+
   const [fontSize, setFontSize] = useState(32); // 기본 글자 크기
   const [scrollSpeed, setScrollSpeed] = useState(5);// 스크롤 속도
   const [isAutoSlide, setIsAutoSlide] = useState(false);// 자동 슬라이드 여부
   const [isHighlight, setIsHighlight] = useState(true);// 강조 표시 여부
+
+  // Extract keywords when script changes
+  useEffect(() => {
+    const extractAndSetKeywords = async () => {
+      if (script && script.trim().length > 0) {
+        const result = await extractKeywords(script);
+        if (result && result.keywords) {
+          setKeywords(result.keywords);
+        }
+      }
+    };
+    extractAndSetKeywords();
+  }, [script, extractKeywords]);
 
   // Theme effect
   useEffect(() => {
@@ -153,7 +169,7 @@ export default function App() {
           <PreparationScreen
             onNavigate={setCurrentScreen}
             onShowToast={showToast}
-            onScriptUpload={setScript} 
+            onScriptUpload={setScript}
 
             fontSize={fontSize}
             scrollSpeed={scrollSpeed}
@@ -167,14 +183,15 @@ export default function App() {
           />
         );
       case "live":
-        return <LivePrompterScreen 
-                  onShowToast={showToast} 
-                  script={script}
-                  // [추가] 설정 값을 props로 전달
-                  fontSize={fontSize}
-                  scrollSpeed={scrollSpeed}
-                  onFontSizeChange={setFontSize}
-               />;
+        return <LivePrompterScreen
+          onShowToast={showToast}
+          script={script}
+          keywords={keywords}
+          // [추가] 설정 값을 props로 전달
+          fontSize={fontSize}
+          scrollSpeed={scrollSpeed}
+          onFontSizeChange={setFontSize}
+        />;
       case "qna":
         return <QnaScreen onShowToast={showToast} />;
       case "report":
@@ -198,7 +215,7 @@ export default function App() {
           />
         );
       case "flow":
-        return <FlowGraphScreen />;
+        return <FlowGraphScreen keywords={keywords} />;
 
       default:
         return (
