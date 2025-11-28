@@ -1,34 +1,39 @@
 # FoS (Focus on Speaking)
 
-LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.  
-발표/회의 전·중·후 전 과정을 지원하는 실시간 텔레프롬프터 & 회의 보조 시스템을 구현합니다.<br><br>
-**실제 서비스는 Vercel을 통해 배포되어 있으며, 아래 주소에서 이용이 가능합니다.**<br>
-**[https://focusonspeaking.vercel.app/](https://focusonspeaking.vercel.app/)**
-![페이지사진](docs/webscreenshot.png)
+This is a real-time AI prompter project designed to work with LG displays.  
+It supports the entire presentation and meeting flow (before, during, and after) as a real-time teleprompter and meeting assistant.
+
+The live service is deployed on Vercel:  
+https://focusonspeaking.vercel.app/
+
+![Web screenshot](docs/webscreenshot.png)
+
 ## 1. Project Overview
 
-- 실시간 STT(Speech-to-Text) 기반 텔레프롬프터
-- 스크립트-발화 동기화 및 유연한 매칭 (KoSentence-BERT + LLM)
-- 키워드 누락 감지 및 실시간 스크립트 보완 제안
-- 발표자 대시보드 (속도, 진행률, 감정/집중도 추정)
-- 회의 모드:
-  - 실시간 발언 의도 태깅 (아이디어, 결정, 액션 아이템, 질문 등)
-  - 아젠다 맵 시각화
-  - Decision / Action Item 위젯
-  - Fact-check 위젯 (RAG / 웹 검색 기반)
+- Real-time teleprompter based on STT (Speech-to-Text)
+- Script–speech synchronization with flexible matching (KoSentence-BERT + LLM)
+- Keyword omission detection and real-time script completion suggestions
+- Presenter dashboard (speed, progress, basic emotion/attention estimation)
+- Meeting mode:
+  - Real-time intent tagging of utterances (idea, decision, action item, question, etc.)
+  - Agenda map visualization
+  - Decision / Action Item widget
+  - Fact-check widget (RAG / web search based)
 
-자세한 시스템 요구사항과 설계는 `docs/fos_paper.tex` (IEEE LaTeX 논문) 파일에 정리되어 있습니다.
+For detailed requirements and system design, see the IEEE-style paper:  
+`docs/fos_paper.tex`.
 
 ## 2. Tech Stack
 
-![페이지사진](docs/architecture_diagram.png)
+![Architecture diagram](docs/architecture_diagram.png)
 
 ## 3. Repository Structure
-structure.md의 내용을 참고해주세요.
-[structure.md](docs/structure.md)
 
+Please refer to `structure.md` for the full repository layout:  
+[structure.md](docs/structure.md)
 
 ## 4. Paper
 
-[프로젝트 개요 PDF](docs/SE_Assignment2_G12.pdf)
-![PDF 썸네일](docs/paperscreenshot.png)
+[Project overview PDF](docs/SE_Assignment2_G12.pdf)  
+![Paper screenshot](docs/paperscreenshot.png)
+
