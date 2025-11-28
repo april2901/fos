@@ -1,8 +1,37 @@
 import { TopNavBar } from "../components/TopNavBar";
 import { Button } from "../components/ui/button";
 import { StatusPill } from "../components/StatusPill";
-import { Play, Pause, FileText, Type } from "lucide-react";
+import { Play, Pause, FileText, Type, Mic } from "lucide-react";
 import { useState, useEffect, useRef, useMemo } from "react";
+
+// Web Speech API Type Definitions
+interface SpeechRecognitionEvent extends Event {
+  results: SpeechRecognitionResultList;
+  resultIndex: number;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+  error: string;
+}
+
+interface CustomSpeechRecognition extends EventTarget {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start(): void;
+  stop(): void;
+  onstart: ((this: CustomSpeechRecognition, ev: Event) => any) | null;
+  onend: ((this: CustomSpeechRecognition, ev: Event) => any) | null;
+  onerror: ((this: CustomSpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+  onresult: ((this: CustomSpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+}
+
+declare global {
+  interface Window {
+    SpeechRecognition: new () => CustomSpeechRecognition;
+    webkitSpeechRecognition: new () => CustomSpeechRecognition;
+  }
+}
 
 interface TeleprompterScreenProps {
   presentationTitle: string;
@@ -36,6 +65,11 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const [volume, setVolume] = useState(6.5);
   const [fontSize, setFontSize] = useState(32); // Default font size in px
 
+  // Web Speech API states
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+  const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
+
   const fullScript = script;
 
   const totalPages = 20;
@@ -52,7 +86,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       const sentenceEnd = sentenceRegex.lastIndex;
 
       const phrases = splitIntoPhrasesWithContext(sentenceText, sentenceStart);
-      
+
       sentences.push({
         text: sentenceText,
         phrases,
@@ -81,15 +115,15 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
   function splitIntoPhrasesWithContext(sentence: string, sentenceStart: number): Phrase[] {
     const phrases: Phrase[] = [];
-    
+
     const commaSplits = sentence.split(',').map(s => s.trim()).filter(s => s.length > 0);
     let globalOffset = sentenceStart;
-    
+
     for (let segmentIdx = 0; segmentIdx < commaSplits.length; segmentIdx++) {
       let segment = commaSplits[segmentIdx];
       const segmentStartInSentence = sentence.indexOf(segment, globalOffset - sentenceStart);
       const segmentStart = sentenceStart + segmentStartInSentence;
-      
+
       const particleMarkers = [
         '은 ', '는 ', '이 ', '가 ',
         '을 ', '를 ',
@@ -97,21 +131,21 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
         '하지만 ', '때문에 ', '그리고 ',
         '와 ', '과 ', '하고 '
       ];
-      
+
       const subBreakPoints: number[] = [0];
-      
+
       for (let i = 0; i < segment.length; i++) {
         for (const marker of particleMarkers) {
           if (segment.substring(i, i + marker.length) === marker) {
             const position = i + marker.length;
             const lastBreak = subBreakPoints[subBreakPoints.length - 1];
-            
+
             if (position - lastBreak >= 8) {
               subBreakPoints.push(position);
             }
           }
         }
-        
+
         if (segment[i] === '"') {
           const closeQuote = segment.indexOf('"', i + 1);
           if (closeQuote !== -1 && closeQuote - i > 3) {
@@ -125,20 +159,20 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           }
         }
       }
-      
+
       subBreakPoints.push(segment.length);
-      
+
       const tempSpans: { text: string; start: number; end: number; koreanCount: number }[] = [];
-      
+
       for (let i = 0; i < subBreakPoints.length - 1; i++) {
         const start = subBreakPoints[i];
         const end = subBreakPoints[i + 1];
         const spanText = segment.substring(start, end).trim();
-        
+
         if (spanText.length === 0) continue;
-        
+
         const koreanCount = (spanText.match(/[\u3131-\u314e\u314f-\u3163\uac00-\ud7a3]/g) || []).length;
-        
+
         tempSpans.push({
           text: spanText,
           start: segmentStart + start,
@@ -146,12 +180,12 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           koreanCount
         });
       }
-      
+
       let i = 0;
       while (i < tempSpans.length) {
         const span = tempSpans[i];
         const wordCount = span.text.split(/\s+/).length;
-        
+
         if ((span.koreanCount < 10 || wordCount < 3) && i < tempSpans.length - 1) {
           const nextSpan = tempSpans[i + 1];
           const mergedText = sentence.substring(
@@ -159,7 +193,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
             nextSpan.end - sentenceStart
           ).trim();
           const mergedKoreanCount = (mergedText.match(/[\u3131-\u314e\u314f-\u3163\uac00-\ud7a3]/g) || []).length;
-          
+
           if (mergedKoreanCount <= 30) {
             tempSpans[i] = {
               text: mergedText,
@@ -175,7 +209,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           i++;
         }
       }
-      
+
       for (const span of tempSpans) {
         phrases.push({
           text: span.text,
@@ -183,10 +217,10 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           endIndex: span.end
         });
       }
-      
+
       globalOffset = segmentStart + segment.length + 1;
     }
-    
+
     return phrases;
   }
 
@@ -203,26 +237,26 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           setIsRunning(false);
           return prev;
         }
-        
+
         const newCharIndex = prev + 1;
-        
+
         // Find which sentence and phrase we're in
         let charCount = 0;
         for (let sentIdx = 0; sentIdx < parsedScript.length; sentIdx++) {
           const sentence = parsedScript[sentIdx];
           const sentenceEnd = charCount + sentence.text.length;
-          
+
           if (newCharIndex <= sentenceEnd) {
             // We're in this sentence
             setCurrentSentenceIndex(sentIdx);
-            
+
             // Find which phrase within this sentence
             for (let phraseIdx = 0; phraseIdx < sentence.phrases.length; phraseIdx++) {
               const phrase = sentence.phrases[phraseIdx];
               const phraseLength = phrase.endIndex - phrase.startIndex;
               const progressInPhrase = newCharIndex - phrase.startIndex;
               const progressPercent = progressInPhrase / phraseLength;
-              
+
               if (newCharIndex >= phrase.startIndex && newCharIndex <= phrase.endIndex) {
                 if (progressPercent >= 0.7 && phraseIdx < sentence.phrases.length - 1) {
                   setCurrentPhraseInSentence(phraseIdx + 1);
@@ -236,7 +270,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           }
           charCount = sentenceEnd + 1;
         }
-        
+
         return newCharIndex;
       });
 
@@ -255,7 +289,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
     const progress = currentSentenceIndex / parsedScript.length;
     const newPage = Math.min(Math.floor(progress * totalPages) + 1, totalPages);
-    
+
     if (newPage !== currentPage) {
       setCurrentPage(newPage);
     }
@@ -266,7 +300,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     const contextSize = 2;
     const startIdx = Math.max(0, currentSentenceIndex - contextSize);
     const endIdx = Math.min(parsedScript.length, currentSentenceIndex + contextSize + 1);
-    
+
     return parsedScript.slice(startIdx, endIdx).map((sentence, idx) => ({
       sentence,
       globalIndex: startIdx + idx,
@@ -286,19 +320,19 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       // Current sentence - entire text in blue, current phrase with blue bg + white text
       const currentSentence = parsedScript[currentSentenceIndex];
       const currentPhrase = currentSentence.phrases[currentPhraseInSentence];
-      
+
       if (!currentPhrase) {
         return <span className="text-[#0064FF]">{sentence.text}</span>;
       }
-      
+
       // Split sentence into parts: before current phrase, current phrase, after current phrase
       const phraseStartInSentence = currentPhrase.startIndex - sentence.startIndex;
       const phraseEndInSentence = currentPhrase.endIndex - sentence.startIndex;
-      
+
       const beforePhrase = sentence.text.substring(0, phraseStartInSentence);
       const phraseText = sentence.text.substring(phraseStartInSentence, phraseEndInSentence);
       const afterPhrase = sentence.text.substring(phraseEndInSentence);
-      
+
       return (
         <>
           <span className="text-[#0064FF]">{beforePhrase}</span>
@@ -322,8 +356,100 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     return 0.7 - (0.15 * (position - 1)); // 1 = 0.7, 2 = 0.55
   };
 
-  const handlePlayPause = () => {
-    setIsRunning(!isRunning);
+  // Initialize Web Speech API
+  useEffect(() => {
+    const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionAPI) {
+      console.warn("Web Speech API not supported in this browser");
+      return;
+    }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "ko-KR";
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      if (isRunning) {
+        try {
+          recognition.start();
+        } catch (err) {
+          console.error("Failed to restart recognition:", err);
+        }
+      }
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error("Speech recognition error:", event.error);
+      if (event.error !== "no-speech" && event.error !== "aborted") {
+        setIsListening(false);
+      }
+    };
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + " ";
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      const fullTranscript = (finalTranscript || interimTranscript).trim();
+      setTranscript(fullTranscript);
+
+      // Match spoken text to script for synchronization
+      if (fullTranscript) {
+        matchSpeechToScript(fullTranscript);
+      }
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, [isRunning]);
+
+  // Match speech to script for synchronization
+  const matchSpeechToScript = (spokenText: string) => {
+    const lowerSpoken = spokenText.toLowerCase();
+    const lowerScript = fullScript.toLowerCase();
+
+    // Simple substring matching
+    const matchIndex = lowerScript.indexOf(lowerSpoken.slice(-50)); // Last 50 chars
+
+    if (matchIndex !== -1) {
+      setCurrentCharIndex(matchIndex + lowerSpoken.slice(-50).length);
+    }
+  };
+
+  const handlePlayPause = async () => {
+    const newRunningState = !isRunning;
+    setIsRunning(newRunningState);
+
+    if (recognitionRef.current) {
+      if (newRunningState) {
+        try {
+          await recognitionRef.current.start();
+        } catch (err) {
+          console.error("Failed to start recognition:", err);
+        }
+      } else {
+        recognitionRef.current.stop();
+      }
+    }
   };
 
   const volumeCategory = volume < 4 ? "작음" : volume > 7.5 ? "큼" : "적정";
@@ -332,7 +458,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   return (
     <div className="w-full h-full bg-[#FAFBFC]">
       <TopNavBar title="실시간 텔레프롬프터" onHomeClick={onHomeClick} showBackButton={true} onBackClick={onBack} />
-      
+
       <div className="pt-16 px-8 py-6 h-full">
         <div className="flex gap-6 h-[calc(100%-64px)] max-w-7xl mx-auto">
           {/* Left - Teleprompter */}
@@ -348,14 +474,14 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                 </div>
                 <div className="flex items-center gap-3">
                   <StatusPill text="STT ON · Recording" variant={isRunning ? "recording" : "default"} />
-                  <Button 
+                  <Button
                     onClick={handlePlayPause}
                     className="h-9 bg-[#0064FF] hover:bg-[#0052CC] rounded-lg gap-2 text-sm px-4 transition-transform hover:scale-[1.02] active:scale-[0.98]"
                   >
                     {isRunning ? <Pause className="size-4" /> : <Play className="size-4" />}
                     {isRunning ? '일시 정지' : '시작하기'}
                   </Button>
-                  <Button 
+                  <Button
                     onClick={onEnd}
                     variant="outline"
                     className="h-9 border-red-200 text-red-600 hover:bg-red-50 rounded-lg text-sm px-4 transition-transform hover:scale-[1.02] active:scale-[0.98]"
@@ -367,9 +493,9 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
               {/* Teleprompter Text - Rolling Dial Viewport with Sentence Lines */}
               <div className="flex-grow flex items-center justify-center overflow-hidden px-12 py-10 relative">
-                <div 
+                <div
                   className="w-full max-w-5xl"
-                  style={{ 
+                  style={{
                     fontSize: `${fontSize}px`,
                     fontWeight: 600,
                     lineHeight: 1.7
@@ -390,7 +516,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                     );
                   })}
                 </div>
-                
+
                 {/* Font Size Controls */}
                 <div className="absolute top-6 right-8 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-lg border border-[rgba(0,0,0,0.1)] px-3 py-2 shadow-sm">
                   <Type className="size-4 text-[#717182]" />
@@ -421,30 +547,27 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
             {/* Presenter Dashboard */}
             <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <h3 className="text-base font-semibold text-[#030213] mb-5">발표자 대시보드</h3>
-              
+
               <div className="space-y-5">
                 <div>
                   <p className="text-xs text-[#717182] mb-2 font-medium">발표 속도</p>
                   <div className="flex gap-2">
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      speed === "느림"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "느림"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       느림
                     </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      speed === "적정"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "적정"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       적정
                     </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      speed === "빠름"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "빠름"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       빠름
                     </div>
                   </div>
@@ -460,25 +583,22 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                     <span className="text-xs text-[#717182] ml-1">({volumeCategory})</span>
                   </div>
                   <div className="flex gap-2">
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      volumeCategory === "작음"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "작음"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       작음
                     </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      volumeCategory === "적정"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "적정"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       적정
                     </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${
-                      volumeCategory === "큼"
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "큼"
                         ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                    }`}>
+                      }`}>
                       큼
                     </div>
                   </div>
@@ -494,17 +614,15 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                   <span className="text-xs text-[#717182]">자동 넘기기</span>
                   <button
                     onClick={() => setAutoAdvanceSlides(!autoAdvanceSlides)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                      autoAdvanceSlides ? 'bg-[#34c759]' : 'bg-gray-300'
-                    }`}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${autoAdvanceSlides ? 'bg-[#34c759]' : 'bg-gray-300'
+                      }`}
                   >
-                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${
-                      autoAdvanceSlides ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow-sm ${autoAdvanceSlides ? 'translate-x-5' : 'translate-x-0.5'
+                      }`} />
                   </button>
                 </div>
               </div>
-              
+
               <div className="flex gap-3 mb-4">
                 {/* Current Slide */}
                 <div className="flex-1">

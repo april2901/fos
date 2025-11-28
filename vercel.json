@@ -1,0 +1,16 @@
+{
+    "buildCommand": "npm install && npm run build",
+    "outputDirectory": "dist",
+    "framework": "vite",
+    "devCommand": "npm run dev -- --port $PORT",
+    "rewrites": [
+        {
+            "source": "/api/llm-test",
+            "destination": "/api/llm-test.ts"
+        },
+        {
+            "source": "/api/extract-keywords",
+            "destination": "/api/extract-keywords.ts"
+        }
+    ]
+}
