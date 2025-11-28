@@ -33,4 +33,4 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 ## 4. Paper
 
 [프로젝트 개요 PDF](docs/SE_Assignment2_G12.pdf)
-[![PDF 썸네일](docs/paperscreenshot.png)]
+![PDF 썸네일](docs/paperscreenshot.png)
