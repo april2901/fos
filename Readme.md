@@ -26,7 +26,7 @@ LG Display 연동 실시간 회의 AI 프롬프터 프로젝트입니다.
 
 ## 2. Tech Stack
 
-![페이지사진](ar.png)
+![페이지사진](architecture_diagram.png)
 
 ## 3. Repository Structure
 
