@@ -1,3 +1,4 @@
+// src/App.tsx
 import { useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';

@@ -78,9 +78,9 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white flex flex-col items-center justify-center">
+    <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white flex flex-col items-center justify-center pt-6">
       {/* Logo */}
-      <div className="mb-16">
+      <div className="mb-6 mt-50">
         <Logo size="md" />
       </div>
 
