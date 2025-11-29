@@ -44,6 +44,7 @@ export default function App() {
   // Presentation data state
   const [presentationTitle, setPresentationTitle] = useState('');
   const [presentationScript, setPresentationScript] = useState('');
+  const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
 
   // 아젠다(논점 지도) 공통 상태
   const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
@@ -55,6 +56,7 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
+    setExtractedKeywords([]);
     setAgendaItems([]); // 회의/아젠다 리셋
   };
 
@@ -102,6 +104,7 @@ export default function App() {
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
+              setExtractedKeywords([]);
               setAgendaItems([]); // 새 회의이므로 아젠다 초기화
               setCurrentScreen('agenda');
             }}
@@ -130,6 +133,7 @@ export default function App() {
               presentationTitle={presentationTitle}
               script={presentationScript}
               onEnd={() => setShowEndModal(true)}
+              onKeywordsExtracted={setExtractedKeywords}
               onHomeClick={navigateToMain}
               onBack={handleBack}
             />
@@ -156,6 +160,7 @@ export default function App() {
           <AgendaTrackerScreen
             hasPresentation={hasPresentation}
             presentationTitle={presentationTitle}
+            extractedKeywords={extractedKeywords}
             agendaItems={agendaItems}
             onAgendaItemsChange={setAgendaItems} // 실시간 입력/노드 생성은 여기로
             onEnd={() => setCurrentScreen('summary')}

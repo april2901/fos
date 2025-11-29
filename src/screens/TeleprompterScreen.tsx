@@ -37,6 +37,7 @@ interface TeleprompterScreenProps {
   presentationTitle: string;
   script: string;
   onEnd: () => void;
+  onKeywordsExtracted: (keywords: string[]) => void;
   onHomeClick: () => void;
   onBack: () => void;
 }
@@ -54,7 +55,7 @@ interface Sentence {
   endIndex: number;
 }
 
-export default function TeleprompterScreen({ presentationTitle, script, onEnd, onHomeClick, onBack }: TeleprompterScreenProps) {
+export default function TeleprompterScreen({ presentationTitle, script, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [currentPhraseInSentence, setCurrentPhraseInSentence] = useState(0);
@@ -69,6 +70,34 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
+
+  // Extract keywords from script using Gemini API
+  useEffect(() => {
+    const extractKeywords = async () => {
+      if (!script || script.trim().length === 0) return;
+
+      try {
+        const response = await fetch('/api/extract-keywords', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.keywords && Array.isArray(data.keywords)) {
+            onKeywordsExtracted(data.keywords);
+          }
+        } else {
+          console.error('Failed to extract keywords:', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error extracting keywords:', error);
+      }
+    };
+
+    extractKeywords();
+  }, [script, onKeywordsExtracted]);
 
   const fullScript = script;
 
@@ -228,61 +257,8 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     return parsedScript.flatMap(sentence => sentence.phrases);
   }, [parsedScript]);
 
-  useEffect(() => {
-    if (!isRunning) return;
-
-    const interval = setInterval(() => {
-      setCurrentCharIndex((prev) => {
-        if (prev >= fullScript.length - 1) {
-          setIsRunning(false);
-          return prev;
-        }
-
-        const newCharIndex = prev + 1;
-
-        // Find which sentence and phrase we're in
-        let charCount = 0;
-        for (let sentIdx = 0; sentIdx < parsedScript.length; sentIdx++) {
-          const sentence = parsedScript[sentIdx];
-          const sentenceEnd = charCount + sentence.text.length;
-
-          if (newCharIndex <= sentenceEnd) {
-            // We're in this sentence
-            setCurrentSentenceIndex(sentIdx);
-
-            // Find which phrase within this sentence
-            for (let phraseIdx = 0; phraseIdx < sentence.phrases.length; phraseIdx++) {
-              const phrase = sentence.phrases[phraseIdx];
-              const phraseLength = phrase.endIndex - phrase.startIndex;
-              const progressInPhrase = newCharIndex - phrase.startIndex;
-              const progressPercent = progressInPhrase / phraseLength;
-
-              if (newCharIndex >= phrase.startIndex && newCharIndex <= phrase.endIndex) {
-                if (progressPercent >= 0.7 && phraseIdx < sentence.phrases.length - 1) {
-                  setCurrentPhraseInSentence(phraseIdx + 1);
-                } else {
-                  setCurrentPhraseInSentence(phraseIdx);
-                }
-                break;
-              }
-            }
-            break;
-          }
-          charCount = sentenceEnd + 1;
-        }
-
-        return newCharIndex;
-      });
-
-      if (Math.random() > 0.7) {
-        const speeds: ("느림" | "적정" | "빠름")[] = ["느림", "적정", "빠름"];
-        setSpeed(speeds[Math.floor(Math.random() * 3)]);
-        setVolume(Math.random() * 4 + 5);
-      }
-    }, 80);
-
-    return () => clearInterval(interval);
-  }, [isRunning, fullScript.length, parsedScript]);
+  // 음성 인식으로만 진행 - 자동 진행 타이머 제거됨
+  // currentCharIndex는 오직 speech recognition API 응답으로만 업데이트
 
   useEffect(() => {
     if (!autoAdvanceSlides || !isRunning) return;
@@ -385,13 +361,31 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.error("Speech recognition error:", event.error);
-      if (event.error !== "no-speech" && event.error !== "aborted") {
+      // aborted는 정상적인 중지 시 발생하므로 로그만 남김
+      if (event.error === "aborted") {
+        console.log('ℹ️ 음성 인식 중지됨 (aborted)');
         setIsListening(false);
+        return;
       }
+
+      // no-speech는 조용할 때 발생 - 에러 아님
+      if (event.error === "no-speech") {
+        console.log('🔇 음성 감지 안 됨');
+        return;
+      }
+
+      // 그 외 실제 오류
+      console.error("❌ Speech recognition error:", event.error);
+      setIsListening(false);
     };
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = async (event: SpeechRecognitionEvent) => {
+      // 일시정지 상태에서는 이벤트 무시
+      if (!isRunning) {
+        console.log('⏸️ 일시정지 상태 - 음성 무시');
+        return;
+      }
+
       let interimTranscript = "";
       let finalTranscript = "";
 
@@ -404,12 +398,54 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
         }
       }
 
-      const fullTranscript = (finalTranscript || interimTranscript).trim();
-      setTranscript(fullTranscript);
+      const transcript = (finalTranscript || interimTranscript).trim();
+      if (!transcript) return;
 
-      // Match spoken text to script for synchronization
-      if (fullTranscript) {
-        matchSpeechToScript(fullTranscript);
+      console.log('🎤 음성 인식 결과:', transcript);
+      console.log('📍 현재 위치:', currentCharIndex, '/ 전체:', fullScript.length);
+      setTranscript(transcript);
+
+      // 백엔드 API를 통한 음성-스크립트 매칭 (LivePrompterScreen 패턴)
+      try {
+        console.log('📡 API 호출 중...', {
+          spokenText: transcript.substring(0, 50) + '...',
+          scriptLength: fullScript.length,
+          lastMatchedIndex: currentCharIndex,
+        });
+
+        const response = await fetch('/api/speech-comparison', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            spokenText: transcript,
+            scriptText: fullScript,
+            lastMatchedIndex: currentCharIndex,
+          }),
+        });
+
+        console.log('📨 API 응답 상태:', response.status, response.statusText);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('📦 API 응답 데이터:', result);
+
+          if (result && typeof result.currentMatchedIndex === 'number') {
+            const newIndex = result.currentMatchedIndex;
+            console.log('✅ 백엔드 매칭 성공!', {
+              이전: currentCharIndex,
+              새위치: newIndex,
+              이동거리: newIndex - currentCharIndex,
+            });
+            setCurrentCharIndex(newIndex);
+          } else {
+            console.warn('⚠️ API 응답 형식 오류:', result);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('❌ 백엔드 API 오류:', response.status, errorText);
+        }
+      } catch (error) {
+        console.error('❌ API 호출 실패:', error);
       }
     };
 
@@ -421,19 +457,6 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       }
     };
   }, [isRunning]);
-
-  // Match speech to script for synchronization
-  const matchSpeechToScript = (spokenText: string) => {
-    const lowerSpoken = spokenText.toLowerCase();
-    const lowerScript = fullScript.toLowerCase();
-
-    // Simple substring matching
-    const matchIndex = lowerScript.indexOf(lowerSpoken.slice(-50)); // Last 50 chars
-
-    if (matchIndex !== -1) {
-      setCurrentCharIndex(matchIndex + lowerSpoken.slice(-50).length);
-    }
-  };
 
   const handlePlayPause = async () => {
     const newRunningState = !isRunning;
@@ -553,20 +576,20 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                   <p className="text-xs text-[#717182] mb-2 font-medium">발표 속도</p>
                   <div className="flex gap-2">
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "느림"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       느림
                     </div>
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "적정"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       적정
                     </div>
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "빠름"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       빠름
                     </div>
@@ -584,20 +607,20 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                   </div>
                   <div className="flex gap-2">
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "작음"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       작음
                     </div>
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "적정"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       적정
                     </div>
                     <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "큼"
-                        ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       큼
                     </div>

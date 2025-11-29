@@ -18,6 +18,7 @@ import { DataSet, Network } from "vis-network/standalone";
 interface AgendaTrackerScreenProps {
   hasPresentation: boolean;
   presentationTitle: string;
+  extractedKeywords: string[];
   agendaItems: AgendaItem[];
   onAgendaItemsChange: (items: AgendaItem[]) => void;
   onEnd: () => void;
@@ -103,6 +104,7 @@ const categoryStyles = {
 export default function AgendaTrackerScreen({
   hasPresentation,
   presentationTitle,
+  extractedKeywords,
   agendaItems,
   onAgendaItemsChange,
   onEnd,
@@ -307,7 +309,7 @@ export default function AgendaTrackerScreen({
       { from: 2, to: 4 },
       { from: 2, to: 5 },
     ]);
-    
+
     // 노드 2에 level 추가
     nodes.update({
       id: 2,
@@ -388,13 +390,13 @@ export default function AgendaTrackerScreen({
       const nodeId = params.nodes[0];
       selectedNodeRef.current = nodeId;
       setSelectedNodeId(nodeId);
-      
+
       // 팝오버 위치 계산
       if (networkRef.current && containerRef.current) {
         const positions = networkRef.current.getPositions([nodeId]);
         const canvasPos = networkRef.current.canvasToDOM(positions[nodeId]);
         const containerRect = containerRef.current.getBoundingClientRect();
-        
+
         setPopoverPosition({
           x: canvasPos.x - containerRect.left + 20,
           y: canvasPos.y - containerRect.top,
@@ -606,7 +608,7 @@ export default function AgendaTrackerScreen({
             </div>
 
             {/* Map Canvas */}
-            <div 
+            <div
               className="flex-grow p-8 bg-gradient-to-br from-[#FAFBFC] to-white relative overflow-hidden"
               onClick={(e) => {
                 // 캔버스 배경 클릭 시 선택 해제
@@ -626,7 +628,7 @@ export default function AgendaTrackerScreen({
                   backgroundSize: "20px 20px",
                 }}
               />
-              
+
               {/* Node Detail Popover */}
               {selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
                 <div
@@ -701,11 +703,10 @@ export default function AgendaTrackerScreen({
                     ref={(el) => {
                       sttEntryRefs.current[entry.id] = el;
                     }}
-                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${
-                      selectedNodeId === entry.nodeId
-                        ? "bg-blue-100 border-blue-300"
-                        : "border-transparent"
-                    }`}
+                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
+                      ? "bg-blue-100 border-blue-300"
+                      : "border-transparent"
+                      }`}
                   >
                     <span className="text-[#717182] text-xs mr-2">
                       {entry.timestamp}
@@ -734,11 +735,10 @@ export default function AgendaTrackerScreen({
                         <button
                           key={type}
                           onClick={() => setSelectedNodeType(type)}
-                          className={`transition-all ${
-                            selectedNodeType === type
-                              ? categoryStyles[type] + " border"
-                              : "opacity-50 hover:opacity-100"
-                          }`}
+                          className={`transition-all ${selectedNodeType === type
+                            ? categoryStyles[type] + " border"
+                            : "opacity-50 hover:opacity-100"
+                            }`}
                         >
                           <AgendaTag type={type} asButton={false} />
                         </button>
@@ -774,6 +774,25 @@ export default function AgendaTrackerScreen({
               실시간 중요 사항
             </h3>
 
+            {/* Keywords Section - From Presentation */}
+            {extractedKeywords && extractedKeywords.length > 0 && (
+              <div className="mb-6 pb-6 border-b border-[rgba(0,0,0,0.06)]">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="size-1.5 rounded-full bg-blue-500" />
+                  <p className="text-sm font-semibold text-[#030213]">발표 키워드</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {extractedKeywords.map((keyword, index) => (
+                    <div
+                      key={index}
+                      className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-sm font-medium">
+                      {keyword}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Decision Section */}
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
@@ -790,14 +809,13 @@ export default function AgendaTrackerScreen({
                     }
                     onDragOver={(e) => handleItemDragOver(e, item.id)}
                     onDrop={(e) => handleItemDrop(e, item.id, "decision")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
-                      dragOverItem === item.id
-                        ? "border-[#0064FF] shadow-lg"
-                        : "border-[rgba(0,0,0,0.1)]"
-                    } hover:shadow-md hover:border-[#0064FF]`}
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
+                      ? "border-[#0064FF] shadow-lg"
+                      : "border-[rgba(0,0,0,0.1)]"
+                      } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
-                    editingItem?.type === "decision" ? (
+                      editingItem?.type === "decision" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -861,14 +879,13 @@ export default function AgendaTrackerScreen({
                     }
                     onDragOver={(e) => handleItemDragOver(e, item.id)}
                     onDrop={(e) => handleItemDrop(e, item.id, "action")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
-                      dragOverItem === item.id
-                        ? "border-[#0064FF] shadow-lg"
-                        : "border-[rgba(0,0,0,0.1)]"
-                    } hover:shadow-md hover:border-[#0064FF]`}
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
+                      ? "border-[#0064FF] shadow-lg"
+                      : "border-[rgba(0,0,0,0.1)]"
+                      } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
-                    editingItem?.type === "action" ? (
+                      editingItem?.type === "action" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"

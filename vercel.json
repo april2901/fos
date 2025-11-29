@@ -5,6 +5,10 @@
     "devCommand": "npm run dev -- --port $PORT",
     "rewrites": [
         {
+            "source": "/api/speech-comparison",
+            "destination": "/api/speech-comparison.ts"
+        },
+        {
             "source": "/api/llm-test",
             "destination": "/api/llm-test.ts"
         },
