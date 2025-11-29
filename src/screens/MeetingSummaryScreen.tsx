@@ -144,7 +144,7 @@ export default function MeetingSummaryScreen({
         onBackClick={onBack}
       />
 
-      <div className="pt-16 px-8 py-6 h-full overflow-y-auto">
+      <div className="px-8 py-6 h-full overflow-y-auto">
         <div className="max-w-7xl mx-auto">
           {/* Top Section - Map + Summary */}
           <div className="flex gap-6 mb-6">

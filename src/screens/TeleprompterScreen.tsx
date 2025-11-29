@@ -459,7 +459,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     <div className="w-full h-full bg-[#FAFBFC]">
       <TopNavBar title="실시간 텔레프롬프터" onHomeClick={onHomeClick} showBackButton={true} onBackClick={onBack} />
 
-      <div className="pt-16 px-8 py-6 h-full">
+      <div className="px-8 py-6 h-full">
         <div className="flex gap-6 h-[calc(100%-64px)] max-w-7xl mx-auto">
           {/* Left - Teleprompter */}
           <div className="flex-[2.2] flex flex-col">

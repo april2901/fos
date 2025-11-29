@@ -50,13 +50,15 @@ interface ImportantItem {
 
 type Category = "리서치" | "아이디어" | "개발" | "디자인" | "일반";
 
-// vis-network 노드 색상
-const CATEGORY_COLORS: Record<Category, {
-  background: string;
-  border: string;
-  highlightBackground: string;
-  highlightBorder: string;
-}> = {
+const CATEGORY_COLORS: Record<
+  Category,
+  {
+    background: string;
+    border: string;
+    highlightBackground: string;
+    highlightBorder: string;
+  }
+> = {
   리서치: {
     background: "rgba(220, 252, 231, 0.9)",
     border: "#22C55E",
@@ -89,7 +91,6 @@ const CATEGORY_COLORS: Record<Category, {
   },
 };
 
-// 카테고리 Pills 스타일
 const categoryStyles = {
   리서치: "bg-green-100 text-green-700 border-green-300",
   아이디어: "bg-blue-100 text-blue-700 border-blue-300",
@@ -110,8 +111,10 @@ export default function AgendaTrackerScreen({
   onBack,
 }: AgendaTrackerScreenProps) {
   const [newNodeText, setNewNodeText] = useState("");
-  const [selectedNodeType, setSelectedNodeType] = useState<Category>("일반");
-  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [selectedNodeType, setSelectedNodeType] =
+    useState<Category>("일반");
+  const [selectedNodeId, setSelectedNodeId] =
+    useState<number | null>(null);
   const [popoverPosition, setPopoverPosition] = useState<{
     x: number;
     y: number;
@@ -125,13 +128,15 @@ export default function AgendaTrackerScreen({
   const nodeCounterRef = useRef(5);
   const guardRef = useRef(false);
 
-  // 노드 메타데이터 저장
-  const [nodeMetadata, setNodeMetadata] = useState<Record<number, NodeMetadata>>({
+  const [nodeMetadata, setNodeMetadata] = useState<
+    Record<number, NodeMetadata>
+  >({
     1: {
       id: 1,
       label: "Focus on Speaking 서비스 기획안",
       category: "아이디어",
-      transcript: "오늘 회의에서는 Focus on Speaking 서비스 기획안을 논의하겠습니다.",
+      transcript:
+        "오늘 회의에서는 Focus on Speaking 서비스 기획안을 논의하겠습니다.",
       timestamp: "10:04",
       summary: "서비스 전반 기획안 소개",
     },
@@ -139,7 +144,8 @@ export default function AgendaTrackerScreen({
       id: 2,
       label: "개발 기술 프레임워크 선정",
       category: "디자인",
-      transcript: "개발 일정은 어떻게 되나요? A안으로 진행하도록 하겠습니다.",
+      transcript:
+        "개발 일정은 어떻게 되나요? A안으로 진행하도록 하겠습니다.",
       timestamp: "10:06",
       summary: "프레임워크 및 기술 스택 결정",
     },
@@ -147,7 +153,8 @@ export default function AgendaTrackerScreen({
       id: 3,
       label: "실시간 STT 구현",
       category: "아이디어",
-      transcript: "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.",
+      transcript:
+        "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.",
       timestamp: "10:12",
       summary: "STT 기반 텔레프롬프터 아이디어",
     },
@@ -188,43 +195,69 @@ export default function AgendaTrackerScreen({
     id: string;
     type: "decision" | "action";
   } | null>(null);
-  const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const [dragOverItem, setDragOverItem] = useState<string | null>(
+    null
+  );
 
-  const sttEntryRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const sttEntryRefs = useRef<
+    Record<string, HTMLDivElement | null>
+  >({});
 
   const [sttEntries, setSTTEntries] = useState<STTEntry[]>([
-    { id: "s1", text: "개발 일정은 어떻게 되나요?", type: "Question", timestamp: "10:06", nodeId: 2 },
-    { id: "s2", text: "A안으로 진행하도록 하겠습니다.", type: "Decision", timestamp: "10:09", nodeId: 2 },
-    { id: "s3", text: "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.", type: "Idea", timestamp: "10:12", nodeId: 3 },
-    { id: "s4", text: "Figma에서 작업한 시안을 공유합니다.", type: "General", timestamp: "10:15", nodeId: 4 },
+    {
+      id: "s1",
+      text: "개발 일정은 어떻게 되나요?",
+      type: "Question",
+      timestamp: "10:06",
+      nodeId: 2,
+    },
+    {
+      id: "s2",
+      text: "A안으로 진행하도록 하겠습니다.",
+      type: "Decision",
+      timestamp: "10:09",
+      nodeId: 2,
+    },
+    {
+      id: "s3",
+      text: "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.",
+      type: "Idea",
+      timestamp: "10:12",
+      nodeId: 3,
+    },
+    {
+      id: "s4",
+      text: "Figma에서 작업한 시안을 공유합니다.",
+      type: "General",
+      timestamp: "10:15",
+      nodeId: 4,
+    },
   ]);
 
-  // 맵 데이터를 부모에게 전달하는 함수
   const syncMapDataToParent = () => {
     const allNodes = nodes.get();
     const allEdges = edges.get();
-    
+
     const nodesData = allNodes.map((node: any) => ({
       id: node.id,
       label: node.label,
-      category: nodeMetadata[node.id]?.category || '일반',
+      category: nodeMetadata[node.id]?.category || "일반",
       timestamp: nodeMetadata[node.id]?.timestamp,
       summary: nodeMetadata[node.id]?.summary,
       transcript: nodeMetadata[node.id]?.transcript,
     }));
-    
+
     const edgesData = allEdges.map((edge: any) => ({
       from: edge.from,
       to: edge.to,
     }));
-    
+
     onAgendaMapDataChange({
       nodes: nodesData,
       edges: edgesData,
     });
   };
 
-  // vis-network 초기화
   useEffect(() => {
     if (networkRef.current || !containerRef.current) return;
 
@@ -238,7 +271,8 @@ export default function AgendaTrackerScreen({
           background: CATEGORY_COLORS["아이디어"].background,
           border: CATEGORY_COLORS["아이디어"].border,
           highlight: {
-            background: CATEGORY_COLORS["아이디어"].highlightBackground,
+            background:
+              CATEGORY_COLORS["아이디어"].highlightBackground,
             border: CATEGORY_COLORS["아이디어"].highlightBorder,
           },
         },
@@ -250,7 +284,8 @@ export default function AgendaTrackerScreen({
           background: CATEGORY_COLORS["디자인"].background,
           border: CATEGORY_COLORS["디자인"].border,
           highlight: {
-            background: CATEGORY_COLORS["디자인"].highlightBackground,
+            background:
+              CATEGORY_COLORS["디자인"].highlightBackground,
             border: CATEGORY_COLORS["디자인"].highlightBorder,
           },
         },
@@ -264,7 +299,8 @@ export default function AgendaTrackerScreen({
           background: CATEGORY_COLORS["아이디어"].background,
           border: CATEGORY_COLORS["아이디어"].border,
           highlight: {
-            background: CATEGORY_COLORS["아이디어"].highlightBackground,
+            background:
+              CATEGORY_COLORS["아이디어"].highlightBackground,
             border: CATEGORY_COLORS["아이디어"].highlightBorder,
           },
         },
@@ -278,7 +314,8 @@ export default function AgendaTrackerScreen({
           background: CATEGORY_COLORS["디자인"].background,
           border: CATEGORY_COLORS["디자인"].border,
           highlight: {
-            background: CATEGORY_COLORS["디자인"].highlightBackground,
+            background:
+              CATEGORY_COLORS["디자인"].highlightBackground,
             border: CATEGORY_COLORS["디자인"].highlightBorder,
           },
         },
@@ -292,7 +329,8 @@ export default function AgendaTrackerScreen({
           background: CATEGORY_COLORS["리서치"].background,
           border: CATEGORY_COLORS["리서치"].border,
           highlight: {
-            background: CATEGORY_COLORS["리서치"].highlightBackground,
+            background:
+              CATEGORY_COLORS["리서치"].highlightBackground,
             border: CATEGORY_COLORS["리서치"].highlightBorder,
           },
         },
@@ -305,7 +343,7 @@ export default function AgendaTrackerScreen({
       { from: 2, to: 4 },
       { from: 2, to: 5 },
     ]);
-    
+
     nodes.update({
       id: 2,
       level: 1,
@@ -381,19 +419,23 @@ export default function AgendaTrackerScreen({
       const nodeId = params.nodes[0];
       selectedNodeRef.current = nodeId;
       setSelectedNodeId(nodeId);
-      
+
       if (networkRef.current && containerRef.current) {
         const positions = networkRef.current.getPositions([nodeId]);
-        const canvasPos = networkRef.current.canvasToDOM(positions[nodeId]);
-        const containerRect = containerRef.current.getBoundingClientRect();
-        
+        const canvasPos =
+          networkRef.current.canvasToDOM(positions[nodeId]);
+        const containerRect =
+          containerRef.current.getBoundingClientRect();
+
         setPopoverPosition({
           x: canvasPos.x - containerRect.left + 20,
           y: canvasPos.y - containerRect.top,
         });
       }
 
-      const matchingEntry = sttEntries.find(entry => entry.nodeId === nodeId);
+      const matchingEntry = sttEntries.find(
+        (entry) => entry.nodeId === nodeId
+      );
       if (matchingEntry && sttEntryRefs.current[matchingEntry.id]) {
         sttEntryRefs.current[matchingEntry.id]?.scrollIntoView({
           behavior: "smooth",
@@ -417,7 +459,6 @@ export default function AgendaTrackerScreen({
       }
     });
 
-    // 초기 데이터 동기화
     setTimeout(() => syncMapDataToParent(), 500);
 
     return () => {
@@ -428,7 +469,6 @@ export default function AgendaTrackerScreen({
     };
   }, []);
 
-  // nodeMetadata 변경 시 동기화
   useEffect(() => {
     if (networkRef.current) {
       syncMapDataToParent();
@@ -449,7 +489,8 @@ export default function AgendaTrackerScreen({
 
     const parentId = selectedNodeRef.current || 1;
     const parentNode = nodes.get(parentId);
-    const parentLevel = parentNode?.level !== undefined ? parentNode.level : 0;
+    const parentLevel =
+      parentNode?.level !== undefined ? parentNode.level : 0;
 
     nodes.add({
       id: newNodeId,
@@ -471,14 +512,13 @@ export default function AgendaTrackerScreen({
     selectedNodeRef.current = newNodeId;
     networkRef.current?.selectNodes([newNodeId]);
 
-    // 새 노드의 메타데이터 추가
-    const newTimestamp = new Date().toLocaleTimeString('ko-KR', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
+    const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
     });
 
-    setNodeMetadata(prev => ({
+    setNodeMetadata((prev) => ({
       ...prev,
       [newNodeId]: {
         id: newNodeId,
@@ -487,13 +527,12 @@ export default function AgendaTrackerScreen({
         timestamp: newTimestamp,
         summary: newNodeText,
         transcript: "",
-      }
+      },
     }));
 
     setNewNodeText("");
     setSelectedNodeType("일반");
 
-    // 부모에게 데이터 동기화
     setTimeout(() => syncMapDataToParent(), 100);
   };
 
@@ -503,7 +542,11 @@ export default function AgendaTrackerScreen({
     }
   };
 
-  const startEdit = (id: string, type: "decision" | "action", currentText: string) => {
+  const startEdit = (
+    id: string,
+    type: "decision" | "action",
+    currentText: string
+  ) => {
     setEditingItem({ id, type });
     setEditText(currentText);
   };
@@ -514,13 +557,17 @@ export default function AgendaTrackerScreen({
     if (editingItem.type === "decision") {
       setDecisions((prev) =>
         prev.map((item) =>
-          item.id === editingItem.id ? { ...item, text: editText } : item
+          item.id === editingItem.id
+            ? { ...item, text: editText }
+            : item
         )
       );
     } else {
       setActionItems((prev) =>
         prev.map((item) =>
-          item.id === editingItem.id ? { ...item, text: editText } : item
+          item.id === editingItem.id
+            ? { ...item, text: editText }
+            : item
         )
       );
     }
@@ -536,36 +583,60 @@ export default function AgendaTrackerScreen({
   const deleteItem = (id: string, type: "decision" | "action") => {
     if (window.confirm("이 항목을 삭제하시겠습니까?")) {
       if (type === "decision") {
-        setDecisions((prev) => prev.filter((item) => item.id !== id));
+        setDecisions((prev) =>
+          prev.filter((item) => item.id !== id)
+        );
       } else {
-        setActionItems((prev) => prev.filter((item) => item.id !== id));
+        setActionItems((prev) =>
+          prev.filter((item) => item.id !== id)
+        );
       }
     }
   };
 
-  const handleItemDragStart = (e: React.DragEvent, id: string, type: "decision" | "action") => {
+  const handleItemDragStart = (
+    e: React.DragEvent,
+    id: string,
+    type: "decision" | "action"
+  ) => {
     setDraggedItem({ id, type });
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleItemDragOver = (e: React.DragEvent, id: string) => {
+  const handleItemDragOver = (
+    e: React.DragEvent,
+    id: string
+  ) => {
     e.preventDefault();
     setDragOverItem(id);
   };
 
-  const handleItemDrop = (e: React.DragEvent, targetId: string, type: "decision" | "action") => {
+  const handleItemDrop = (
+    e: React.DragEvent,
+    targetId: string,
+    type: "decision" | "action"
+  ) => {
     e.preventDefault();
-    if (!draggedItem || draggedItem.type !== type || draggedItem.id === targetId) {
+    if (
+      !draggedItem ||
+      draggedItem.type !== type ||
+      draggedItem.id === targetId
+    ) {
       setDraggedItem(null);
       setDragOverItem(null);
       return;
     }
 
     const items = type === "decision" ? decisions : actionItems;
-    const setItems = type === "decision" ? setDecisions : setActionItems;
+    const setItems =
+      type === "decision" ? setDecisions : setActionItems;
 
-    const draggedIndex = items.findIndex((item) => item.id === draggedItem.id);
-    const targetIndex = items.findIndex((item) => item.id === targetId);
+    const draggedIndex = items.findIndex(
+      (item) => item.id === draggedItem.id
+    );
+    const targetIndex = items.findIndex(
+      (item) => item.id === targetId
+    );
 
     const newItems = [...items];
     const [removed] = newItems.splice(draggedIndex, 1);
@@ -577,7 +648,7 @@ export default function AgendaTrackerScreen({
   };
 
   return (
-    <div className="w-full h-full bg-[#FAFBFC]">
+    <div className="w-full min-h-screen bg-[#FAFBFC]">
       <TopNavBar
         title="Agenda Map"
         onHomeClick={onHomeClick}
@@ -585,13 +656,26 @@ export default function AgendaTrackerScreen({
         onBackClick={onBack}
       />
 
-      <div className="pt-16 px-8 py-6 h-full flex gap-6">
+      <div 
+        className="px-8 py-6 pb-10 flex gap-6"
+        style={{ height: "640px" }} 
+      >
         {/* Left - Agenda Map */}
-        <div className="flex-[2.5] flex flex-col">
-          <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] flex-grow flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(0,0,0,0.06)]">
+        <div className="flex-[2.5] flex flex-col h-full">
+          <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] flex flex-col h-full overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(0,0,0,0.06)] shrink-0">
               <h3 className="text-base font-semibold text-[#030213]">실시간 논점 지도</h3>
-              <StatusPill text="REC" variant="recording" />
+              
+              <div className="flex items-center gap-3">
+                <StatusPill text="REC" variant="recording" />
+                <Button
+                  onClick={onEnd}
+                  variant="outline"
+                  className="h-9 px-4 border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF] rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  회의 종료
+                </Button>
+              </div>
             </div>
 
             <div 
@@ -613,6 +697,7 @@ export default function AgendaTrackerScreen({
                 }}
               />
               
+              {/* 팝오버 등 기존 로직 유지 */}
               {selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
                 <div
                   className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
@@ -667,7 +752,7 @@ export default function AgendaTrackerScreen({
               )}
             </div>
 
-            <div className="border-t border-[rgba(0,0,0,0.06)] p-5 bg-white">
+            <div className="border-t border-[rgba(0,0,0,0.06)] p-5 bg-white shrink-0">
               <p className="text-xs text-[#717182] mb-3 font-medium">실시간 STT 로그</p>
 
               <div className="bg-[#FAFBFC] rounded-lg p-3 mb-3 max-h-20 overflow-y-auto space-y-2 text-sm border border-[rgba(0,0,0,0.06)]">
@@ -726,20 +811,11 @@ export default function AgendaTrackerScreen({
               </div>
             </div>
           </div>
-
-          <div className="flex justify-end mt-4">
-            <Button
-              onClick={onEnd}
-              className="h-11 px-8 bg-[#0064FF] hover:bg-[#0052CC] rounded-lg shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
-            >
-              회의 종료
-            </Button>
-          </div>
         </div>
 
         {/* Right - Important Items Dashboard */}
-        <div className="flex-1">
-          <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col">
+        <div className="flex-1 h-full">
+          <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col overflow-y-auto">
             <h3 className="text-base font-semibold text-[#030213] mb-6">실시간 중요 사항</h3>
 
             <div className="mb-6">

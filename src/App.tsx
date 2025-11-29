@@ -210,20 +210,12 @@ export default function App() {
   };
 
   return (
-    <div 
-      className="bg-white overflow-hidden"
-      style={{
-        width: 'min(100vw, 133.33vh)',
-        height: 'min(100vh, 75vw)',
-        aspectRatio: '4 / 3',
-        margin: 'auto',
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      }}
-    >
-      {renderScreen()}
+    // 전체 브라우저 높이/너비 사용
+    <div className="w-full h-screen bg-[#F3F4F6]">
+      {/* 가운데 정렬 + 거의 풀폭 (노트북 기준) */}
+      <div className="h-full max-w-[1440px] mx-auto bg-white">
+        {renderScreen()}
+      </div>
     </div>
   );
 }
