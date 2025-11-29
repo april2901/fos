@@ -69,7 +69,14 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   // Web Speech API states
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
+  const [cumulativeTranscript, setCumulativeTranscript] = useState(""); // 누적 음성 인식 결과
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
+  const isRunningRef = useRef(isRunning); // isRunning을 ref로 추적
+
+  // isRunning 상태를 ref에 동기화
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
 
   // Extract keywords from script using Gemini API
   useEffect(() => {
@@ -257,9 +264,50 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     return parsedScript.flatMap(sentence => sentence.phrases);
   }, [parsedScript]);
 
-  // 음성 인식으로만 진행 - 자동 진행 타이머 제거됨
-  // currentCharIndex는 오직 speech recognition API 응답으로만 업데이트
+  // currentCharIndex가 변경되면 해당하는 문장/구절 인덱스 계산
+  useEffect(() => {
+    if (parsedScript.length === 0) return;
 
+    // 현재 문자 위치에 해당하는 문장 찾기
+    let foundSentenceIndex = 0;
+    let foundPhraseIndex = 0;
+
+    for (let sIdx = 0; sIdx < parsedScript.length; sIdx++) {
+      const sentence = parsedScript[sIdx];
+
+      // 현재 위치가 이 문장 범위 안에 있는지 확인
+      if (currentCharIndex >= sentence.startIndex && currentCharIndex < sentence.endIndex) {
+        foundSentenceIndex = sIdx;
+
+        // 문장 내에서 현재 구절 찾기
+        for (let pIdx = 0; pIdx < sentence.phrases.length; pIdx++) {
+          const phrase = sentence.phrases[pIdx];
+          if (currentCharIndex >= phrase.startIndex && currentCharIndex < phrase.endIndex) {
+            foundPhraseIndex = pIdx;
+            break;
+          } else if (currentCharIndex >= phrase.endIndex) {
+            // 이 구절을 지나쳤으면 다음 구절로
+            foundPhraseIndex = Math.min(pIdx + 1, sentence.phrases.length - 1);
+          }
+        }
+        break;
+      } else if (currentCharIndex >= sentence.endIndex) {
+        // 이 문장을 완전히 지나쳤으면 다음 문장으로
+        foundSentenceIndex = Math.min(sIdx + 1, parsedScript.length - 1);
+        foundPhraseIndex = 0;
+      }
+    }
+
+    // 상태 업데이트 (변경된 경우에만)
+    if (foundSentenceIndex !== currentSentenceIndex) {
+      setCurrentSentenceIndex(foundSentenceIndex);
+      setCurrentPhraseInSentence(foundPhraseIndex);
+    } else if (foundPhraseIndex !== currentPhraseInSentence) {
+      setCurrentPhraseInSentence(foundPhraseIndex);
+    }
+  }, [currentCharIndex, parsedScript]);
+
+  // 슬라이드 자동 넘기기
   useEffect(() => {
     if (!autoAdvanceSlides || !isRunning) return;
 
@@ -332,7 +380,19 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     return 0.7 - (0.15 * (position - 1)); // 1 = 0.7, 2 = 0.55
   };
 
-  // Initialize Web Speech API
+  // 현재 charIndex를 ref로 추적 (콜백 내에서 최신 값 사용)
+  const currentCharIndexRef = useRef(currentCharIndex);
+  useEffect(() => {
+    currentCharIndexRef.current = currentCharIndex;
+  }, [currentCharIndex]);
+
+  // 누적 transcript를 ref로 추적
+  const cumulativeTranscriptRef = useRef(cumulativeTranscript);
+  useEffect(() => {
+    cumulativeTranscriptRef.current = cumulativeTranscript;
+  }, [cumulativeTranscript]);
+
+  // Initialize Web Speech API (한 번만 초기화)
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognitionAPI) {
@@ -346,17 +406,23 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     recognition.lang = "ko-KR";
 
     recognition.onstart = () => {
+      console.log('🎙️ 음성 인식 시작됨');
       setIsListening(true);
     };
 
     recognition.onend = () => {
+      console.log('🔴 음성 인식 종료됨, isRunning:', isRunningRef.current);
       setIsListening(false);
-      if (isRunning) {
-        try {
-          recognition.start();
-        } catch (err) {
-          console.error("Failed to restart recognition:", err);
-        }
+      // isRunning이 true면 자동 재시작
+      if (isRunningRef.current) {
+        setTimeout(() => {
+          try {
+            recognition.start();
+            console.log('🔄 음성 인식 재시작');
+          } catch (err) {
+            console.error("Failed to restart recognition:", err);
+          }
+        }, 100);
       }
     };
 
@@ -370,7 +436,17 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
       // no-speech는 조용할 때 발생 - 에러 아님
       if (event.error === "no-speech") {
-        console.log('🔇 음성 감지 안 됨');
+        console.log('🔇 음성 감지 안 됨 - 재시작 시도');
+        // no-speech 후 자동 재시작
+        if (isRunningRef.current) {
+          setTimeout(() => {
+            try {
+              recognition.start();
+            } catch (err) {
+              // 이미 시작된 경우 무시
+            }
+          }, 100);
+        }
         return;
       }
 
@@ -381,7 +457,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
     recognition.onresult = async (event: SpeechRecognitionEvent) => {
       // 일시정지 상태에서는 이벤트 무시
-      if (!isRunning) {
+      if (!isRunningRef.current) {
         console.log('⏸️ 일시정지 상태 - 음성 무시');
         return;
       }
@@ -390,59 +466,67 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       let finalTranscript = "";
 
       for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript;
+        const result = event.results[i][0].transcript;
         if (event.results[i].isFinal) {
-          finalTranscript += transcript + " ";
+          finalTranscript += result + " ";
         } else {
-          interimTranscript += transcript;
+          interimTranscript += result;
         }
       }
 
-      const transcript = (finalTranscript || interimTranscript).trim();
-      if (!transcript) return;
+      // final transcript가 있으면 누적
+      if (finalTranscript.trim()) {
+        setCumulativeTranscript(prev => {
+          const updated = (prev + " " + finalTranscript).trim();
+          // 최대 500자까지만 유지 (메모리 관리)
+          return updated.length > 500 ? updated.slice(-500) : updated;
+        });
+      }
 
-      console.log('🎤 음성 인식 결과:', transcript);
-      console.log('📍 현재 위치:', currentCharIndex, '/ 전체:', fullScript.length);
-      setTranscript(transcript);
+      // 매칭에 사용할 텍스트: 누적 + 현재 interim
+      const searchText = (cumulativeTranscriptRef.current + " " + (finalTranscript || interimTranscript)).trim();
+      if (!searchText || searchText.length < 2) return;
 
-      // 백엔드 API를 통한 음성-스크립트 매칭 (LivePrompterScreen 패턴)
+      setTranscript(finalTranscript || interimTranscript);
+      console.log('🎤 음성 인식:', { final: finalTranscript, interim: interimTranscript });
+
+      // 백엔드 API를 통한 음성-스크립트 매칭
       try {
-        console.log('📡 API 호출 중...', {
-          spokenText: transcript.substring(0, 50) + '...',
-          scriptLength: fullScript.length,
-          lastMatchedIndex: currentCharIndex,
+        console.log('📡 API 호출:', {
+          spokenText: searchText.slice(-50),
+          lastMatchedIndex: currentCharIndexRef.current,
         });
 
         const response = await fetch('/api/speech-comparison', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            spokenText: transcript,
+            spokenText: searchText,
             scriptText: fullScript,
-            lastMatchedIndex: currentCharIndex,
+            lastMatchedIndex: currentCharIndexRef.current,
           }),
         });
 
-        console.log('📨 API 응답 상태:', response.status, response.statusText);
-
         if (response.ok) {
           const result = await response.json();
-          console.log('📦 API 응답 데이터:', result);
+          console.log('📨 API 응답:', result);
 
           if (result && typeof result.currentMatchedIndex === 'number') {
             const newIndex = result.currentMatchedIndex;
-            console.log('✅ 백엔드 매칭 성공!', {
-              이전: currentCharIndex,
-              새위치: newIndex,
-              이동거리: newIndex - currentCharIndex,
-            });
-            setCurrentCharIndex(newIndex);
-          } else {
-            console.warn('⚠️ API 응답 형식 오류:', result);
+            // 진행 방향으로만 이동 (뒤로 가지 않음) + isCorrect 체크
+            if (result.isCorrect && newIndex > currentCharIndexRef.current) {
+              console.log('✅ 매칭 성공!', {
+                이전: currentCharIndexRef.current,
+                새위치: newIndex,
+                이동거리: newIndex - currentCharIndexRef.current,
+              });
+              setCurrentCharIndex(newIndex);
+            } else {
+              console.log('⏸️ 위치 유지:', { isCorrect: result.isCorrect, newIndex, current: currentCharIndexRef.current });
+            }
           }
         } else {
-          const errorText = await response.text();
-          console.error('❌ 백엔드 API 오류:', response.status, errorText);
+          console.error('❌ API 오류:', response.status, await response.text());
         }
       } catch (error) {
         console.error('❌ API 호출 실패:', error);
@@ -453,24 +537,44 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // 이미 중지된 경우 무시
+        }
       }
     };
-  }, [isRunning]);
+  }, [fullScript]); // fullScript가 변경될 때만 재초기화
 
   const handlePlayPause = async () => {
     const newRunningState = !isRunning;
     setIsRunning(newRunningState);
 
-    if (recognitionRef.current) {
-      if (newRunningState) {
+    if (newRunningState) {
+      // 시작할 때 누적 transcript 초기화 (처음 시작할 때만)
+      if (currentCharIndex === 0) {
+        setCumulativeTranscript("");
+      }
+
+      // 음성 인식 시작
+      if (recognitionRef.current) {
         try {
-          await recognitionRef.current.start();
+          recognitionRef.current.start();
+          console.log('▶️ 발표 시작 - 음성 인식 활성화');
         } catch (err) {
-          console.error("Failed to start recognition:", err);
+          // 이미 시작된 경우 무시
+          console.log('ℹ️ 음성 인식이 이미 활성화되어 있음');
         }
-      } else {
-        recognitionRef.current.stop();
+      }
+    } else {
+      // 일시정지
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+          console.log('⏸️ 발표 일시정지 - 음성 인식 중지');
+        } catch (err) {
+          // 이미 중지된 경우 무시
+        }
       }
     }
   };
@@ -572,6 +676,46 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
               <h3 className="text-base font-semibold text-[#030213] mb-5">발표자 대시보드</h3>
 
               <div className="space-y-5">
+                {/* 발표 진행률 */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs text-[#717182] font-medium">발표 진행률</p>
+                    <span className="text-sm font-semibold text-[#0064FF]">
+                      {Math.round((currentCharIndex / fullScript.length) * 100)}%
+                    </span>
+                  </div>
+                  <div className="h-2 bg-[#F4F6FF] rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#0064FF] rounded-full transition-all duration-300"
+                      style={{ width: `${(currentCharIndex / fullScript.length) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-[#717182] mt-1">
+                    문장 {currentSentenceIndex + 1} / {parsedScript.length}
+                  </p>
+                </div>
+
+                {/* 실시간 음성 인식 */}
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Mic className={`size-4 ${isListening ? 'text-red-500 animate-pulse' : 'text-[#717182]'}`} />
+                    <p className="text-xs text-[#717182] font-medium">실시간 음성 인식</p>
+                    {isListening && (
+                      <span className="text-xs text-red-500 font-medium">녹음 중</span>
+                    )}
+                  </div>
+                  <div className="bg-[#FAFBFC] rounded-lg p-3 border border-[rgba(0,0,0,0.06)] min-h-[60px] max-h-[80px] overflow-y-auto">
+                    {transcript ? (
+                      <p className="text-sm text-[#030213] leading-relaxed">{transcript}</p>
+                    ) : (
+                      <p className="text-sm text-[#717182] italic">
+                        {isRunning ? '음성을 인식하고 있습니다...' : '시작 버튼을 누르면 음성 인식이 시작됩니다'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {/* 발표 속도 */}
                 <div>
                   <p className="text-xs text-[#717182] mb-2 font-medium">발표 속도</p>
                   <div className="flex gap-2">
@@ -592,37 +736,6 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                       : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
                       }`}>
                       빠름
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs text-[#717182] mb-2 font-medium">발표 볼륨</p>
-                  <div className="mb-2">
-                    <span className="text-xs text-[#717182]">볼륨: </span>
-                    <span className="text-base font-semibold text-[#0064FF]">
-                      {volume.toFixed(1)} / 10
-                    </span>
-                    <span className="text-xs text-[#717182] ml-1">({volumeCategory})</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "작음"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      작음
-                    </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "적정"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      적정
-                    </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${volumeCategory === "큼"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      큼
                     </div>
                   </div>
                 </div>
