@@ -572,7 +572,10 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
             if (result.isCorrect && newIndex > currentCharIndexRef.current) {
               // 스킵된 부분이 있으면 저장
               if (result.skippedRange) {
-                setSkippedRanges(prev => [...prev, result.skippedRange]);
+                setSkippedRanges(prev => [...prev, {
+                  start: result.skippedRange.start - 1,
+                  end: result.skippedRange.end - 1
+                }]); // 인덱스 보정
               }
               setCurrentCharIndex(newIndex);
             }
