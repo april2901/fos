@@ -422,6 +422,7 @@ export default function AgendaTrackerScreen({
       selectedNodeRef.current = nodeId;
       setSelectedNodeId(nodeId);
 
+
       if (networkRef.current && containerRef.current) {
         const positions = networkRef.current.getPositions([nodeId]);
         const canvasPos =
@@ -680,6 +681,7 @@ export default function AgendaTrackerScreen({
               </div>
             </div>
 
+
             <div
               className="flex-grow p-8 bg-gradient-to-br from-[#FAFBFC] to-white relative overflow-hidden"
               onClick={(e) => {
@@ -699,36 +701,75 @@ export default function AgendaTrackerScreen({
                 }}
               />
 
+<<<<<<< HEAD
+  {/* 팝오버 등 기존 로직 유지 */ }
+  {
+    selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
+      <div
+        className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
+        style={{
+          left: `${popoverPosition.x}px`,
+          top: `${popoverPosition.y}px`,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex-grow pr-2">
+            <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
+              {nodeMetadata[selectedNodeId].label}
+            </h4>
+            <p className="text-xs text-[#717182]">
+              {nodeMetadata[selectedNodeId].timestamp}
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setSelectedNodeId(null);
+              setPopoverPosition(null);
+              networkRef.current?.unselectAll();
+            }}
+            className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
+          >
+            <X className="size-4" />
+          </button>
+=======
+
               {/* 팝오버 등 기존 로직 유지 */}
-              {
-                selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
-                  <div
-                    className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
-                    style={{
-                      left: `${popoverPosition.x}px`,
-                      top: `${popoverPosition.y}px`,
-                    }}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-grow pr-2">
-                        <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
-                          {nodeMetadata[selectedNodeId].label}
-                        </h4>
-                        <p className="text-xs text-[#717182]">
-                          {nodeMetadata[selectedNodeId].timestamp}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setSelectedNodeId(null);
-                          setPopoverPosition(null);
-                          networkRef.current?.unselectAll();
-                        }}
-                        className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
-                      >
-                        <X className="size-4" />
-                      </button>
+          {selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
+                <div
+                  className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
+                  style={{
+                    left: `${popoverPosition.x}px`,
+                    top: `${popoverPosition.y}px`,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-grow pr-2">
+                      <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
+                        {nodeMetadata[selectedNodeId].label}
+                      </h4>
+                      <p className="text-xs text-[#717182]">
+                        {nodeMetadata[selectedNodeId].timestamp}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedNodeId(null);
+                        setPopoverPosition(null);
+                        networkRef.current?.unselectAll();
+                      }}
+                      className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-[#717182] font-medium mb-1.5">유형</p>
+                      <AgendaTag type={nodeMetadata[selectedNodeId].category} />
+
                     </div>
 
                     <div className="space-y-3">
@@ -763,11 +804,16 @@ export default function AgendaTrackerScreen({
                 {sttEntries.map((entry) => (
                   <div
                     key={entry.id}
+
                     ref={(el) => { sttEntryRefs.current[entry.id] = el; }}
                     className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
                         ? "bg-blue-100 border-blue-300"
                         : "border-transparent"
+<<<<<<< HEAD
                       }`}
+=======
+                    }`}
+>>>>>>> d3f05d0f3a3f4d91894b4f3dd85223617cab85e2
                   >
                     <span className="text-[#717182] text-xs mr-2">{entry.timestamp}</span>
                     {entry.text}
@@ -789,6 +835,7 @@ export default function AgendaTrackerScreen({
                     className="flex-grow bg-transparent outline-none text-sm"
                   />
                   <div className="flex gap-1.5">
+
                     {(["리서치", "아이디어", "개발", "디자인", "일반"] as const).map((type) => (
                       <button
                         key={type}
@@ -801,8 +848,8 @@ export default function AgendaTrackerScreen({
                         <AgendaTag type={type} asButton={false} />
                       </button>
                     ))}
-                  </div >
-                </div >
+                  </div>
+                </div>
                 <button
                   onClick={handleCreateNode}
                   className="size-10 rounded-lg bg-[#0064FF] flex items-center justify-center hover:bg-[#0052CC] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -810,142 +857,144 @@ export default function AgendaTrackerScreen({
                 >
                   <Plus className="size-5 text-white" />
                 </button>
-              </div >
-            </div >
-          </div >
-        </div >
-
-        {/* Right - Important Items Dashboard */}
-        < div className="flex-1 h-full" >
-          <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col overflow-y-auto">
-            <h3 className="text-base font-semibold text-[#030213] mb-6">실시간 중요 사항</h3>
-
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-purple-500" />
-                <p className="text-sm font-semibold text-[#030213]">Decision</p>
-              </div>
-              <div className="space-y-2">
-                {decisions.map((item) => (
-                  <div
-                    key={item.id}
-                    draggable
-                    onDragStart={(e) => handleItemDragStart(e, item.id, "decision")}
-                    onDragOver={(e) => handleItemDragOver(e, item.id)}
-                    onDrop={(e) => handleItemDrop(e, item.id, "decision")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                      ? "border-[#0064FF] shadow-lg"
-                      : "border-[rgba(0,0,0,0.1)]"
-                      } hover:shadow-md hover:border-[#0064FF]`}
-                  >
-                    {editingItem?.id === item.id && editingItem?.type === "decision" ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
-                          autoFocus
-                        />
-                        <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
-                          <Check className="size-4" />
-                        </button>
-                        <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <GripVertical className="size-4 text-[#717182] shrink-0" />
-                        <p
-                          onClick={() => startEdit(item.id, "decision", item.text)}
-                          className="flex-grow text-sm text-[#030213] cursor-pointer"
-                        >
-                          {item.text}
-                        </p>
-                        <button
-                          onClick={() => deleteItem(item.id, "decision")}
-                          className="text-red-500 hover:bg-red-50 p-1 rounded"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    )
-                    }
-                  </div >
-                ))
-                }
-              </div >
-            </div >
-
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="size-1.5 rounded-full bg-blue-500" />
-                <p className="text-sm font-semibold text-[#030213]">Action Item</p>
-              </div>
-              <div className="space-y-2">
-                {actionItems.map((item) => (
-                  <div
-                    key={item.id}
-                    draggable
-                    onDragStart={(e) => handleItemDragStart(e, item.id, "action")}
-                    onDragOver={(e) => handleItemDragOver(e, item.id)}
-                    onDrop={(e) => handleItemDrop(e, item.id, "action")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                      ? "border-[#0064FF] shadow-lg"
-                      : "border-[rgba(0,0,0,0.1)]"
-                      } hover:shadow-md hover:border-[#0064FF]`}
-                  >
-                    {editingItem?.id === item.id && editingItem?.type === "action" ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
-                          className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
-                          autoFocus
-                        />
-                        <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
-                          <Check className="size-4" />
-                        </button>
-                        <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <GripVertical className="size-4 text-[#717182] shrink-0" />
-                        <p
-                          onClick={() => startEdit(item.id, "action", item.text)}
-                          className="flex-grow text-sm text-[#030213] cursor-pointer"
-                        >
-                          {item.text}
-                        </p>
-                        <button
-                          onClick={() => deleteItem(item.id, "action")}
-                          className="text-red-500 hover:bg-red-50 p-1 rounded"
-                        >
-                          <Trash2 className="size-4" />
-                        </button>
-                      </div>
-                    )
-                    }
-                  </div >
-                ))}
-              </div >
-            </div >
-
-            <div className="mt-auto pt-4 border-t border-[rgba(0,0,0,0.06)]">
-              <div className="flex items-start gap-2 text-xs text-[#717182] bg-[#F4F6FF] p-3 rounded-lg">
-                <Info className="size-4 shrink-0 mt-0.5 text-[#0064FF]" />
-                <p className="leading-relaxed">
-                  카드를 클릭하여 우선순위 변경 또는 수정/삭제를 할 수 있습니다.
-                </p>
               </div>
             </div>
+          </div>
+      </div>
+
+      {/* Right - Important Items Dashboard */ }
+    < div className="flex-1 h-full" >
+      <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col overflow-y-auto">
+        <h3 className="text-base font-semibold text-[#030213] mb-6">실시간 중요 사항</h3>
+
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="size-1.5 rounded-full bg-purple-500" />
+            <p className="text-sm font-semibold text-[#030213]">Decision</p>
+          </div>
+          <div className="space-y-2">
+            {decisions.map((item) => (
+              <div
+                key={item.id}
+                draggable
+                onDragStart={(e) => handleItemDragStart(e, item.id, "decision")}
+                onDragOver={(e) => handleItemDragOver(e, item.id)}
+                onDrop={(e) => handleItemDrop(e, item.id, "decision")}
+                className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
+                  ? "border-[#0064FF] shadow-lg"
+                  : "border-[rgba(0,0,0,0.1)]"
+                  } hover:shadow-md hover:border-[#0064FF]`}
+              >
+
+                {editingItem?.id === item.id && editingItem?.type === "decision" ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
+                      autoFocus
+                    />
+                    <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                      <Check className="size-4" />
+                    </button>
+                    <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="size-4 text-[#717182] shrink-0" />
+                    <p
+                      onClick={() => startEdit(item.id, "decision", item.text)}
+                      className="flex-grow text-sm text-[#030213] cursor-pointer"
+                    >
+                      {item.text}
+                    </p>
+                    <button
+                      onClick={() => deleteItem(item.id, "decision")}
+                      className="text-red-500 hover:bg-red-50 p-1 rounded"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                )
+                }
+              </div >
+            ))
+            }
           </div >
         </div >
+
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="size-1.5 rounded-full bg-blue-500" />
+            <p className="text-sm font-semibold text-[#030213]">Action Item</p>
+          </div>
+          <div className="space-y-2">
+            {actionItems.map((item) => (
+              <div
+                key={item.id}
+                draggable
+                onDragStart={(e) => handleItemDragStart(e, item.id, "action")}
+                onDragOver={(e) => handleItemDragOver(e, item.id)}
+                onDrop={(e) => handleItemDrop(e, item.id, "action")}
+                className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
+                  ? "border-[#0064FF] shadow-lg"
+                  : "border-[rgba(0,0,0,0.1)]"
+                  } hover:shadow-md hover:border-[#0064FF]`}
+              >
+
+                {editingItem?.id === item.id && editingItem?.type === "action" ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editText}
+                      onChange={(e) => setEditText(e.target.value)}
+                      className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
+                      autoFocus
+                    />
+                    <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                      <Check className="size-4" />
+                    </button>
+                    <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <GripVertical className="size-4 text-[#717182] shrink-0" />
+                    <p
+                      onClick={() => startEdit(item.id, "action", item.text)}
+                      className="flex-grow text-sm text-[#030213] cursor-pointer"
+                    >
+                      {item.text}
+                    </p>
+                    <button
+                      onClick={() => deleteItem(item.id, "action")}
+                      className="text-red-500 hover:bg-red-50 p-1 rounded"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
+                )
+                }
+              </div >
+            ))}
+          </div >
+        </div >
+
+        <div className="mt-auto pt-4 border-t border-[rgba(0,0,0,0.06)]">
+          <div className="flex items-start gap-2 text-xs text-[#717182] bg-[#F4F6FF] p-3 rounded-lg">
+            <Info className="size-4 shrink-0 mt-0.5 text-[#0064FF]" />
+            <p className="leading-relaxed">
+              카드를 클릭하여 우선순위 변경 또는 수정/삭제를 할 수 있습니다.
+            </p>
+          </div>
+        </div>
+      </div >
+    </div >
       </div >
     </div >
   );
-}
+  }

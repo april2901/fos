@@ -30,6 +30,7 @@ out/
 # OS
 .DS_Store
 Thumbs.db
+CLAUDE.md
 
 # Logs
 logs/
@@ -42,3 +43,4 @@ coverage/
 # Temporary files
 *.tmp
 .cache/
+.env*.local

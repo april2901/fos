@@ -1,3 +1,4 @@
+// src/App.tsx
 import { useState } from 'react';
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
@@ -87,6 +88,10 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
+<<<<<<< HEAD
+=======
+    setExtractedKeywords([]);
+>>>>>>> d3f05d0f3a3f4d91894b4f3dd85223617cab85e2
     setAgendaItems([]);
     setAgendaMapData({ nodes: [], edges: [] });
   };
@@ -131,6 +136,10 @@ export default function App() {
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
+<<<<<<< HEAD
+=======
+              setExtractedKeywords([]);
+>>>>>>> d3f05d0f3a3f4d91894b4f3dd85223617cab85e2
               setAgendaItems([]);
               setAgendaMapData({ nodes: [], edges: [] });
               setCurrentScreen('agenda');
@@ -213,9 +222,7 @@ export default function App() {
   };
 
   return (
-    // 전체 브라우저 높이/너비 사용
     <div className="w-full h-screen bg-[#F3F4F6]">
-      {/* 가운데 정렬 + 거의 풀폭 (노트북 기준) */}
       <div className="h-full max-w-[1440px] mx-auto bg-white">
         {renderScreen()}
       </div>

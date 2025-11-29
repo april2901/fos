@@ -141,10 +141,10 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   const isFormValid = presentationTitle.trim().length > 0 && script.trim().length > 0;
 
   return (
-    <div className="w-full min-h-screen bg-[#FAFBFC]">
+    <div className="w-full min-h-screen bg-[#FAFBFC] flex flex-col">
       <TopNavBar title="발표 준비" onHomeClick={onHomeClick} showBackButton={true} onBackClick={onBack} />
       
-      <div className="px-8 py-8 pb-10">
+      <div className="px-8 py-8 pb-10 overflow-y-auto flex-1">
         {/* Title Input */}
         <div className="mb-6 max-w-7xl mx-auto">
           <Label className="text-sm font-medium mb-2 block text-[#030213]">발표 제목</Label>
@@ -156,14 +156,12 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
           />
         </div>
 
-        {/* ▼▼▼ 높이 950px 강제 고정 (스크립트 창을 길게 만들기 위함) ▼▼▼ */}
         <div 
           className="flex gap-6 max-w-7xl mx-auto"
           style={{ height: "950px" }}
         >
-          {/* Left Column - Script (높이 100%로 꽉 채움) */}
           <div className="flex-[2] h-full">
-            <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col">
+            <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-18 flex flex-col">
               <div className="flex items-center justify-between mb-4 shrink-0">
                 <h3 className="text-base font-semibold text-[#030213]">스크립트 입력</h3>
                 <span className="text-xs text-[#717182]">
@@ -171,12 +169,16 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                 </span>
               </div>
               
-              {/* Textarea가 남은 공간을 모두 차지하도록 flex-grow 설정 */}
-              <Textarea 
+              <Textarea
                 placeholder="여기에 발표 스크립트를 붙여넣으세요."
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
-                className="flex-grow rounded-lg border-[rgba(0,0,0,0.1)] bg-[#FAFBFC] resize-none text-sm leading-relaxed overflow-y-auto p-4"
+                className="rounded-lg border-[rgba(0,0,0,0.1)] bg-[#FAFBFC] resize-none text-sm leading-relaxed p-4"
+                style={{
+                  height: "800px",      
+                  maxHeight: "800px",
+                  overflowY: "auto",   
+                }}
               />
               
               <p className="text-xs text-[#717182] mt-3 leading-relaxed shrink-0">

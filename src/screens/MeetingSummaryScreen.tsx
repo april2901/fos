@@ -28,6 +28,8 @@ export default function MeetingSummaryScreen({
 }: MeetingSummaryScreenProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<Network | null>(null);
+  // 추가: 나중에 색 바꾸려고 nodes DataSet을 기억해두는 ref
+  const nodesRef = useRef<DataSet<any> | null>(null);
 
   // vis-network 초기화
   useEffect(() => {
@@ -37,7 +39,7 @@ export default function MeetingSummaryScreen({
     const edges = new DataSet<any>();
 
     // 부모에서 받은 데이터로 노드 추가
-    agendaMapData.nodes.forEach((node, index) => {
+    agendaMapData.nodes.forEach((node) => {
       const color = CATEGORY_COLORS[node.category] || CATEGORY_COLORS["일반"];
       nodes.add({
         id: node.id,
@@ -48,6 +50,9 @@ export default function MeetingSummaryScreen({
         },
       });
     });
+
+    // 여기서 ref에 저장
+    nodesRef.current = nodes;
 
     // 부모에서 받은 데이터로 엣지 추가
     agendaMapData.edges.forEach((edge) => {
@@ -112,6 +117,7 @@ export default function MeetingSummaryScreen({
         networkRef.current.destroy();
         networkRef.current = null;
       }
+      nodesRef.current = null; // 정리
     };
   }, [agendaMapData]);
 
@@ -135,6 +141,48 @@ export default function MeetingSummaryScreen({
     }
   };
 
+  // 타임라인 클릭 시: 위 Agenda Map에서 해당 노드 포커스 + 반짝임
+  const handleTimelineClick = (nodeId: number) => {
+    if (!networkRef.current || !nodesRef.current) return;
+
+    const network = networkRef.current;
+    const nodes = nodesRef.current;
+
+    // 노드 선택 + 포커스 이동
+    network.selectNodes([nodeId]);
+    network.focus(nodeId, {
+      scale: 1.2,
+      animation: {
+        duration: 500,
+        easingFunction: "easeInOutQuad",
+      },
+    });
+
+    // 색 반짝이는 효과
+    const node = nodes.get(nodeId);
+    if (!node) return;
+
+    const originalColor = node.color || {};
+    const highlightBg = "#FEF3C7"; // 연노랑
+    const highlightBorder = "#FBBF24";
+
+    nodes.update({
+      id: nodeId,
+      color: {
+        ...originalColor,
+        background: highlightBg,
+        border: highlightBorder,
+      },
+    });
+
+    setTimeout(() => {
+      nodes.update({
+        id: nodeId,
+        color: originalColor,
+      });
+    }, 600);
+  };
+
   return (
     <div className="w-full h-full bg-[#FAFBFC]">
       <TopNavBar
@@ -151,15 +199,26 @@ export default function MeetingSummaryScreen({
             {/* Left - Final Agenda Map */}
             <div className="flex-[1.8] bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-base font-semibold text-[#030213]">최종 Agenda Map</h3>
+                <h3 className="text-base font-semibold text-[#030213]">
+                  최종 Agenda Map
+                </h3>
                 <div className="flex gap-1">
-                  <button onClick={handleZoomIn} className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors">
+                  <button
+                    onClick={handleZoomIn}
+                    className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors"
+                  >
                     <ZoomIn className="size-4 text-[#717182]" />
                   </button>
-                  <button onClick={handleZoomOut} className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors">
+                  <button
+                    onClick={handleZoomOut}
+                    className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors"
+                  >
                     <ZoomOut className="size-4 text-[#717182]" />
                   </button>
-                  <button onClick={handleFit} className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors">
+                  <button
+                    onClick={handleFit}
+                    className="p-2 hover:bg-[#F4F6FF] rounded-lg transition-colors"
+                  >
                     <Move className="size-4 text-[#717182]" />
                   </button>
                 </div>
@@ -170,7 +229,8 @@ export default function MeetingSummaryScreen({
                   ref={containerRef}
                   className="w-full h-full"
                   style={{
-                    backgroundImage: "radial-gradient(circle, #e5e5e5 1px, transparent 1px)",
+                    backgroundImage:
+                      "radial-gradient(circle, #e5e5e5 1px, transparent 1px)",
                     backgroundSize: "20px 20px",
                   }}
                 />
@@ -185,7 +245,9 @@ export default function MeetingSummaryScreen({
             {/* Right - Summary List */}
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="text-base font-semibold text-[#030213]">최종 결정 사항 & 액션 아이템</h3>
+                <h3 className="text-base font-semibold text-[#030213]">
+                  최종 결정 사항 & 액션 아이템
+                </h3>
                 <Button
                   variant="outline"
                   className="h-9 px-4 border-[#0064FF] text-[#0064FF] hover:bg-[#F4F6FF] rounded-lg gap-2 text-sm"
@@ -197,7 +259,9 @@ export default function MeetingSummaryScreen({
 
               <div className="space-y-5">
                 <div>
-                  <p className="text-sm font-semibold text-[#030213] mb-2">주요 토픽</p>
+                  <p className="text-sm font-semibold text-[#030213] mb-2">
+                    주요 토픽
+                  </p>
                   <ul className="space-y-1.5 text-sm text-[#717182]">
                     {agendaMapData.nodes.length > 0 ? (
                       agendaMapData.nodes.slice(0, 5).map((node) => (
@@ -213,7 +277,9 @@ export default function MeetingSummaryScreen({
                 </div>
 
                 <div>
-                  <p className="text-sm font-semibold text-[#030213] mb-2">결정 사항</p>
+                  <p className="text-sm font-semibold text-[#030213] mb-2">
+                    결정 사항
+                  </p>
                   <ol className="space-y-1.5 text-sm text-[#717182] list-decimal list-inside">
                     <li>A안으로 진행 (디자인 시안 채택)</li>
                     <li>개발 일정 1주 연장 합의</li>
@@ -223,7 +289,9 @@ export default function MeetingSummaryScreen({
                 </div>
 
                 <div>
-                  <p className="text-sm font-semibold text-[#030213] mb-2">Action Item</p>
+                  <p className="text-sm font-semibold text-[#030213] mb-2">
+                    Action Item
+                  </p>
                   <ol className="space-y-1.5 text-sm text-[#717182] list-decimal list-inside">
                     <li>@민수: 경쟁사 리서치 정리 (금요일까지)</li>
                     <li>@지영: 프로토타입 공유 (다음 주 월요일)</li>
@@ -237,9 +305,12 @@ export default function MeetingSummaryScreen({
 
           {/* Bottom Section - Timeline */}
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
-            <h3 className="text-base font-semibold text-[#030213] mb-2">Meeting Agenda Timeline</h3>
+            <h3 className="text-base font-semibold text-[#030213] mb-2">
+              Meeting Agenda Timeline
+            </h3>
             <p className="text-xs text-[#717182] mb-6 leading-relaxed">
-              타임라인의 토픽을 클릭하면 상단 Agenda Map에서 해당 노드가 하이라이트됩니다.
+              타임라인의 토픽을 클릭하면 상단 Agenda Map에서 해당 노드가
+              하이라이트됩니다.
             </p>
 
             <div className="relative">
@@ -253,10 +324,13 @@ export default function MeetingSummaryScreen({
                       speaker={String.fromCharCode(65 + (index % 3))}
                       label={node.label}
                       tag={node.category}
+                      onClick={() => handleTimelineClick(node.id)}
                     />
                   ))
                 ) : (
-                  <p className="text-[#717182] text-sm">타임라인 데이터가 없습니다.</p>
+                  <p className="text-[#717182] text-sm">
+                    타임라인 데이터가 없습니다.
+                  </p>
                 )}
               </div>
             </div>
@@ -272,14 +346,19 @@ function TimelineItem({
   speaker,
   label,
   tag,
+  onClick,
 }: {
   time: string;
   speaker: string;
   label: string;
   tag: string;
+  onClick: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity">
+    <div
+      className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity"
+      onClick={onClick}
+    >
       <div className="size-8 rounded-full bg-gradient-to-br from-[#0064FF] to-[#0052CC] text-white flex items-center justify-center font-semibold text-xs mb-2 z-10 border-2 border-white shadow-sm">
         {speaker}
       </div>
