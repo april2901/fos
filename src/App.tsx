@@ -87,13 +87,9 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
-<<<<<<< HEAD
     setExtractedKeywords([]);
-    setAgendaItems([]); // 회의/아젠다 리셋
-=======
     setAgendaItems([]);
     setAgendaMapData({ nodes: [], edges: [] });
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
   };
 
   // Back navigation logic based on screen flow
@@ -136,13 +132,9 @@ export default function App() {
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
-<<<<<<< HEAD
               setExtractedKeywords([]);
-              setAgendaItems([]); // 새 회의이므로 아젠다 초기화
-=======
               setAgendaItems([]);
               setAgendaMapData({ nodes: [], edges: [] });
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
               setCurrentScreen('agenda');
             }}
             onStartPresentation={() => setCurrentScreen('setup')}
@@ -223,9 +215,7 @@ export default function App() {
   };
 
   return (
-    // 전체 브라우저 높이/너비 사용
     <div className="w-full h-screen bg-[#F3F4F6]">
-      {/* 가운데 정렬 + 거의 풀폭 (노트북 기준) */}
       <div className="h-full max-w-[1440px] mx-auto bg-white">
         {renderScreen()}
       </div>
