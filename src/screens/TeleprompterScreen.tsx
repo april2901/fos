@@ -70,8 +70,11 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [cumulativeTranscript, setCumulativeTranscript] = useState(""); // 누적 음성 인식 결과
+  const [skippedRanges, setSkippedRanges] = useState<Array<{ start: number; end: number }>>([]); // 틀린 부분 (스킵된 구간)
   const recognitionRef = useRef<CustomSpeechRecognition | null>(null);
   const isRunningRef = useRef(isRunning); // isRunning을 ref로 추적
+  const pendingApiCall = useRef(false); // API 호출 중복 방지
+  const lastApiCallTime = useRef(0); // 마지막 API 호출 시간
 
   // isRunning 상태를 ref에 동기화
   useEffect(() => {
@@ -332,21 +335,66 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     }));
   }, [parsedScript, currentSentenceIndex]);
 
+  // 텍스트를 스킵된 부분과 정상 부분으로 나누어 렌더링하는 헬퍼 함수
+  const renderTextWithSkipped = (text: string, sentenceStart: number, className: string, style?: React.CSSProperties) => {
+    // 이 문장에 해당하는 스킵된 구간 찾기
+    const sentenceEnd = sentenceStart + text.length;
+    const relevantSkips = skippedRanges.filter(
+      range => range.start < sentenceEnd && range.end > sentenceStart
+    );
+
+    if (relevantSkips.length === 0) {
+      return <span className={className} style={style}>{text}</span>;
+    }
+
+    // 텍스트를 조각으로 나누기
+    const segments: Array<{ text: string; isSkipped: boolean }> = [];
+    let lastIndex = 0;
+
+    for (const range of relevantSkips) {
+      const skipStartInSentence = Math.max(0, range.start - sentenceStart);
+      const skipEndInSentence = Math.min(text.length, range.end - sentenceStart);
+
+      if (skipStartInSentence > lastIndex) {
+        segments.push({ text: text.substring(lastIndex, skipStartInSentence), isSkipped: false });
+      }
+      if (skipEndInSentence > skipStartInSentence) {
+        segments.push({ text: text.substring(skipStartInSentence, skipEndInSentence), isSkipped: true });
+      }
+      lastIndex = skipEndInSentence;
+    }
+
+    if (lastIndex < text.length) {
+      segments.push({ text: text.substring(lastIndex), isSkipped: false });
+    }
+
+    return (
+      <>
+        {segments.map((seg, idx) => (
+          <span
+            key={idx}
+            className={seg.isSkipped ? "" : className}
+            style={seg.isSkipped ? 
+              { color : '#FF0000' } : style} // 스킵된 부분 주황색으로 표시
+          >
+            {seg.text}
+          </span>
+        ))}
+      </>
+    );
+  };
+
   const renderSentenceWithHighlight = (sentence: Sentence, position: number) => {
     if (position < 0) {
-      // Previous sentence - light gray
-      return (
-        <span className="text-[#D0D0D0]">
-          {sentence.text}
-        </span>
-      );
+      // Previous sentence - 스킵된 부분은 주황색, 나머지는 회색
+      return renderTextWithSkipped(sentence.text, sentence.startIndex, "text-[#D0D0D0]");
     } else if (position === 0) {
       // Current sentence - entire text in blue, current phrase with blue bg + white text
       const currentSentence = parsedScript[currentSentenceIndex];
       const currentPhrase = currentSentence.phrases[currentPhraseInSentence];
 
       if (!currentPhrase) {
-        return <span className="text-[#0064FF]">{sentence.text}</span>;
+        return renderTextWithSkipped(sentence.text, sentence.startIndex, "text-[#0064FF]");
       }
 
       // Split sentence into parts: before current phrase, current phrase, after current phrase
@@ -359,9 +407,9 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
       return (
         <>
-          <span className="text-[#0064FF]">{beforePhrase}</span>
+          {renderTextWithSkipped(beforePhrase, sentence.startIndex, "text-[#0064FF]")}
           <span className="bg-[#0064FF] text-white px-1.5 py-0.5 rounded">{phraseText}</span>
-          <span className="text-[#0064FF]">{afterPhrase}</span>
+          {renderTextWithSkipped(afterPhrase, sentence.startIndex + phraseEndInSentence, "text-[#0064FF]")}
         </>
       );
     } else {
@@ -478,25 +526,34 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       if (finalTranscript.trim()) {
         setCumulativeTranscript(prev => {
           const updated = (prev + " " + finalTranscript).trim();
-          // 최대 500자까지만 유지 (메모리 관리)
-          return updated.length > 500 ? updated.slice(-500) : updated;
+          // 최대 200자까지만 유지 (더 짧게)
+          return updated.length > 200 ? updated.slice(-200) : updated;
         });
       }
 
-      // 매칭에 사용할 텍스트: 누적 + 현재 interim
-      const searchText = (cumulativeTranscriptRef.current + " " + (finalTranscript || interimTranscript)).trim();
+      // 매칭에 사용할 텍스트: 최근 음성만 사용 (더 짧게)
+      const currentText = (finalTranscript || interimTranscript).trim();
+      const searchText = (cumulativeTranscriptRef.current.slice(-100) + " " + currentText).trim();
       if (!searchText || searchText.length < 2) return;
 
-      setTranscript(finalTranscript || interimTranscript);
-      console.log('🎤 음성 인식:', { final: finalTranscript, interim: interimTranscript });
+      setTranscript(currentText);
+
+      // API 호출 쓰로틀링: 이미 호출 중이거나 150ms 이내면 스킵
+      const now = Date.now();
+      if (pendingApiCall.current || (now - lastApiCallTime.current) < 150) {
+        return;
+      }
+
+      // Final 결과일 때만 API 호출 (interim은 UI 업데이트만)
+      if (!finalTranscript.trim() && interimTranscript.length < 10) {
+        return;
+      }
+
+      pendingApiCall.current = true;
+      lastApiCallTime.current = now;
 
       // 백엔드 API를 통한 음성-스크립트 매칭
       try {
-        console.log('📡 API 호출:', {
-          spokenText: searchText.slice(-50),
-          lastMatchedIndex: currentCharIndexRef.current,
-        });
-
         const response = await fetch('/api/speech-comparison', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -509,27 +566,22 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
         if (response.ok) {
           const result = await response.json();
-          console.log('📨 API 응답:', result);
 
           if (result && typeof result.currentMatchedIndex === 'number') {
             const newIndex = result.currentMatchedIndex;
-            // 진행 방향으로만 이동 (뒤로 가지 않음) + isCorrect 체크
             if (result.isCorrect && newIndex > currentCharIndexRef.current) {
-              console.log('✅ 매칭 성공!', {
-                이전: currentCharIndexRef.current,
-                새위치: newIndex,
-                이동거리: newIndex - currentCharIndexRef.current,
-              });
+              // 스킵된 부분이 있으면 저장
+              if (result.skippedRange) {
+                setSkippedRanges(prev => [...prev, result.skippedRange]);
+              }
               setCurrentCharIndex(newIndex);
-            } else {
-              console.log('⏸️ 위치 유지:', { isCorrect: result.isCorrect, newIndex, current: currentCharIndexRef.current });
             }
           }
-        } else {
-          console.error('❌ API 오류:', response.status, await response.text());
         }
       } catch (error) {
-        console.error('❌ API 호출 실패:', error);
+        console.error('❌ API 실패:', error);
+      } finally {
+        pendingApiCall.current = false;
       }
     };
 
@@ -554,6 +606,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       // 시작할 때 누적 transcript 초기화 (처음 시작할 때만)
       if (currentCharIndex === 0) {
         setCumulativeTranscript("");
+        setSkippedRanges([]); // 틀린 부분도 초기화
       }
 
       // 음성 인식 시작

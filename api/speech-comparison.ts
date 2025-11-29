@@ -91,18 +91,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        console.log('📥 요청:', {
-            spokenLength: spokenText.length,
-            scriptLength: scriptText.length,
-            lastMatchedIndex
-        });
-
         // 정규화
         const normalizedSpoken = normalizeText(spokenText);
         const normalizedScript = normalizeText(scriptText);
-
-        console.log('📝 정규화된 음성:', normalizedSpoken.slice(-50));
-        console.log('📜 정규화된 스크립트 (처음 100자):', normalizedScript.slice(0, 100));
 
         if (normalizedSpoken.length < 2) {
             return res.status(200).json({
@@ -112,56 +103,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             });
         }
 
-        // 현재 위치 이후의 스크립트에서 검색
-        const currentNormalizedIndex = (() => {
-            let count = 0;
-            for (let i = 0; i < Math.min(lastMatchedIndex || 0, scriptText.length); i++) {
-                if (!/[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/.test(scriptText[i])) {
-                    count++;
-                }
-            }
-            return count;
-        })();
-
-        // 검색할 스크립트 범위 (현재 위치부터 + 여유분)
-        const searchStart = Math.max(0, currentNormalizedIndex - 20);
-        const searchScript = normalizedScript.slice(searchStart);
-
-        // 음성의 마지막 부분으로 매칭 (다양한 길이 시도)
-        let bestMatch = { index: -1, length: 0 };
-
-        // 마지막 5~30자로 매칭 시도
-        for (let len = Math.min(30, normalizedSpoken.length); len >= 3; len--) {
-            const searchPhrase = normalizedSpoken.slice(-len);
-
-            // 정확한 부분문자열 매칭
-            const idx = searchScript.indexOf(searchPhrase);
-            if (idx !== -1) {
-                const matchEnd = searchStart + idx + len;
-                if (matchEnd > bestMatch.index + bestMatch.length) {
-                    bestMatch = { index: searchStart + idx, length: len };
-                    console.log('✅ 정확 매칭:', {
-                        searchPhrase,
-                        idx,
-                        matchEnd,
-                        normalizedMatchEnd: matchEnd
-                    });
-                    break;
-                }
+        // 현재 위치의 정규화된 인덱스 계산 (간소화)
+        let currentNormalizedIndex = 0;
+        const lastIdx = Math.min(lastMatchedIndex || 0, scriptText.length);
+        for (let i = 0; i < lastIdx; i++) {
+            if (!/[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/.test(scriptText[i])) {
+                currentNormalizedIndex++;
             }
         }
 
-        // 정확한 매칭 실패 시 LCS로 유사 매칭 시도
-        if (bestMatch.index === -1) {
-            const spokenEnd = normalizedSpoken.slice(-20); // 마지막 20자
-            const lcsResult = findLongestCommonSubstring(spokenEnd, searchScript.slice(0, 500));
+        // 검색 범위: 현재 위치 앞 10자 ~ 뒤 300자 (범위 축소)
+        const searchStart = Math.max(0, currentNormalizedIndex - 10);
+        const searchEnd = Math.min(normalizedScript.length, currentNormalizedIndex + 300);
+        const searchScript = normalizedScript.slice(searchStart, searchEnd);
 
-            if (lcsResult.length >= 3) {
+        // 음성의 마지막 부분으로 빠른 매칭
+        let bestMatch = { index: -1, length: 0 };
+
+        // 마지막 3~20자로 매칭 (범위 축소)
+        const maxLen = Math.min(20, normalizedSpoken.length);
+        for (let len = maxLen; len >= 3; len--) {
+            const searchPhrase = normalizedSpoken.slice(-len);
+            const idx = searchScript.indexOf(searchPhrase);
+
+            if (idx !== -1) {
+                bestMatch = { index: searchStart + idx, length: len };
+                break; // 가장 긴 매칭 찾으면 즉시 종료
+            }
+        }
+
+        // 정확 매칭 실패 시 짧은 LCS (범위 축소)
+        if (bestMatch.index === -1 && normalizedSpoken.length >= 5) {
+            const spokenEnd = normalizedSpoken.slice(-15);
+            const lcsResult = findLongestCommonSubstring(spokenEnd, searchScript.slice(0, 200));
+
+            if (lcsResult.length >= 4) {
                 bestMatch = {
                     index: searchStart + lcsResult.start,
                     length: lcsResult.length
                 };
-                console.log('🔍 LCS 매칭:', lcsResult);
             }
         }
 
@@ -169,23 +149,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             const normalizedMatchEnd = bestMatch.index + bestMatch.length;
             const originalIndex = findOriginalIndex(scriptText, normalizedMatchEnd);
 
-            // 진행 방향으로만 (현재 위치보다 앞으로만)
             if (originalIndex > (lastMatchedIndex || 0)) {
-                console.log('🎯 매칭 성공:', {
-                    normalizedMatchEnd,
-                    originalIndex,
-                    이동거리: originalIndex - (lastMatchedIndex || 0)
-                });
+                // 스킵된 부분 계산 (매칭 시작 위치 - 현재 위치)
+                const matchStartNormalized = bestMatch.index;
+                const matchStartOriginal = findOriginalIndex(scriptText, matchStartNormalized);
+
+                // 스킵된 구간이 있으면 반환
+                const skippedStart = lastMatchedIndex || 0;
+                const skippedEnd = matchStartOriginal;
+                const hasSkipped = skippedEnd > skippedStart + 2; // 2자 이상 스킵시에만
 
                 return res.status(200).json({
                     currentMatchedIndex: originalIndex,
                     isCorrect: true,
-                    confidence: bestMatch.length / 20, // 0~1.5 범위
+                    confidence: bestMatch.length / 15,
+                    skippedRange: hasSkipped ? { start: skippedStart, end: skippedEnd } : null,
                 });
             }
         }
-
-        console.log('❌ 매칭 실패 - 위치 유지');
 
         // 매칭 실패 시 현재 위치 유지
         return res.status(200).json({
