@@ -122,6 +122,15 @@ export default function AgendaTrackerScreen({
     y: number;
   } | null>(null);
 
+  // STT 관련 상태
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentTranscript, setCurrentTranscript] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const transcriptBufferRef = useRef("");
+  const finalCountRef = useRef(0); // final 결과 횟수 카운트
+  const lastAnalysisTimeRef = useRef(0);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<Network | null>(null);
   const nodes = useRef(new DataSet<any>()).current;
@@ -259,6 +268,263 @@ export default function AgendaTrackerScreen({
       edges: edgesData,
     });
   };
+
+  // 기존 노드들의 주제 목록 가져오기
+  const getExistingTopics = (): string[] => {
+    return Object.values(nodeMetadata).map((meta) => meta.label);
+  };
+
+  // LLM API를 호출하여 회의 내용 분석
+  const analyzeMeetingContent = async (transcript: string) => {
+    console.log('[DEBUG] analyzeMeetingContent called with:', transcript.substring(0, 50));
+    
+    if (isAnalyzing || transcript.length < 10) {
+      console.log('[DEBUG] Skipped: isAnalyzing=', isAnalyzing, 'length=', transcript.length);
+      return;
+    }
+    
+    const now = Date.now();
+    // 최소 5초 간격으로 분석
+    if (now - lastAnalysisTimeRef.current < 5000) {
+      console.log('[DEBUG] Skipped: too soon, wait', 5000 - (now - lastAnalysisTimeRef.current), 'ms');
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    lastAnalysisTimeRef.current = now;
+    console.log('[DEBUG] Starting API call...');
+
+    try {
+      const response = await fetch('/api/analyze-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript,
+          existingTopics: getExistingTopics(),
+        }),
+      });
+
+      console.log('[DEBUG] API response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[DEBUG] API result:', result);
+        
+        // 새 노드 생성
+        createNodeFromAnalysis(result, transcript);
+        console.log('[DEBUG] Node created!');
+        
+        // 버퍼 초기화
+        transcriptBufferRef.current = "";
+      } else {
+        const errorText = await response.text();
+        console.error('[DEBUG] API error response:', errorText);
+      }
+    } catch (error) {
+      console.error('Meeting analysis error:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // 분석 결과로 노드 생성
+  const createNodeFromAnalysis = (
+    result: {
+      keyword: string;
+      category: Category;
+      summary: string;
+      isNewTopic: boolean;
+      relatedTopicIndex?: number;
+    },
+    transcript: string
+  ) => {
+    // 현재 존재하는 노드들의 최대 ID를 확인하여 중복 방지
+    const existingIds = nodes.getIds() as number[];
+    const maxExistingId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    if (nodeCounterRef.current <= maxExistingId) {
+      nodeCounterRef.current = maxExistingId;
+    }
+    const newNodeId = ++nodeCounterRef.current;
+    const color = CATEGORY_COLORS[result.category];
+    
+    // 부모 노드 결정: 관련 주제가 있으면 해당 노드, 없으면 루트(1) 또는 선택된 노드
+    let parentId = 1;
+    if (result.relatedTopicIndex !== undefined && result.relatedTopicIndex !== null) {
+      const existingNodes = Object.keys(nodeMetadata).map(Number);
+      if (existingNodes[result.relatedTopicIndex]) {
+        parentId = existingNodes[result.relatedTopicIndex];
+      }
+    } else if (selectedNodeRef.current) {
+      parentId = selectedNodeRef.current;
+    }
+
+    const parentNode = nodes.get(parentId);
+    const parentLevel = parentNode?.level !== undefined ? parentNode.level : 0;
+
+    // 노드 추가
+    nodes.add({
+      id: newNodeId,
+      label: result.keyword.length > 15 
+        ? result.keyword.substring(0, 12) + '...' 
+        : result.keyword,
+      level: parentLevel + 1,
+      fixed: { x: true, y: false },
+      color: {
+        background: color.background,
+        border: color.border,
+        highlight: {
+          background: color.highlightBackground,
+          border: color.highlightBorder,
+        },
+      },
+    });
+
+    // 엣지 추가
+    edges.add({ from: parentId, to: newNodeId });
+
+    const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    // 메타데이터 업데이트
+    setNodeMetadata((prev) => ({
+      ...prev,
+      [newNodeId]: {
+        id: newNodeId,
+        label: result.keyword,
+        category: result.category,
+        timestamp: newTimestamp,
+        summary: result.summary,
+        transcript: transcript,
+      },
+    }));
+
+    // STT 엔트리 추가
+    const newEntryId = `s${Date.now()}`;
+    setSTTEntries((prev) => [
+      ...prev,
+      {
+        id: newEntryId,
+        text: transcript,
+        type: result.category,
+        timestamp: newTimestamp,
+        nodeId: newNodeId,
+      },
+    ]);
+
+    // 새 노드 선택
+    selectedNodeRef.current = newNodeId;
+    networkRef.current?.selectNodes([newNodeId]);
+
+    setTimeout(() => syncMapDataToParent(), 100);
+  };
+
+  // STT 초기화 및 시작/중지
+  const initializeSpeechRecognition = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.warn("Web Speech API not supported");
+      return null;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = "ko-KR";
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = "";
+      let finalTranscript = "";
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript + " ";
+        } else {
+          interimTranscript += transcript;
+        }
+      }
+
+      // 현재 인식 중인 텍스트 표시
+      setCurrentTranscript(interimTranscript || finalTranscript);
+
+      // Final 결과가 있으면 버퍼에 추가
+      if (finalTranscript.trim()) {
+        transcriptBufferRef.current += finalTranscript;
+        finalCountRef.current += 1;
+        
+        console.log('[DEBUG] Final result added, count:', finalCountRef.current, 'buffer:', transcriptBufferRef.current.substring(0, 50));
+        
+        // 3번의 final 결과가 쌓이면 분석 (또는 버퍼가 100자 이상)
+        const buffer = transcriptBufferRef.current;
+        if (finalCountRef.current >= 3 || buffer.length >= 100) {
+          console.log('[DEBUG] Triggering analysis...');
+          analyzeMeetingContent(buffer.trim());
+          finalCountRef.current = 0; // 카운트 리셋
+        }
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+        console.error("Speech recognition error:", event.error);
+      }
+    };
+
+    recognition.onend = () => {
+      // 녹음 중이면 자동 재시작
+      if (isRecording) {
+        try {
+          recognition.start();
+        } catch (e) {
+          // 이미 시작된 경우 무시
+        }
+      }
+    };
+
+    return recognition;
+  };
+
+  const toggleRecording = () => {
+    if (isRecording) {
+      // 녹음 중지
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      setIsRecording(false);
+      setCurrentTranscript("");
+      
+      // 남은 버퍼 분석
+      if (transcriptBufferRef.current.length >= 10) {
+        analyzeMeetingContent(transcriptBufferRef.current.trim());
+      }
+    } else {
+      // 녹음 시작
+      if (!recognitionRef.current) {
+        recognitionRef.current = initializeSpeechRecognition();
+      }
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsRecording(true);
+          transcriptBufferRef.current = "";
+        } catch (e) {
+          console.error("Failed to start recording:", e);
+        }
+      }
+    }
+  };
+
+  // 컴포넌트 언마운트 시 STT 정리
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (networkRef.current || !containerRef.current) return;
@@ -670,7 +936,29 @@ export default function AgendaTrackerScreen({
               <h3 className="text-base font-semibold text-[#030213]">실시간 논점 지도</h3>
 
               <div className="flex items-center gap-3">
-                <StatusPill text="REC" variant="recording" />
+                {/* 녹음 상태 표시 및 버튼 */}
+                <Button
+                  onClick={toggleRecording}
+                  variant={isRecording ? "destructive" : "outline"}
+                  className={`h-9 px-4 rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
+                    isRecording 
+                      ? "bg-red-500 hover:bg-red-600 text-white" 
+                      : "border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF]"
+                  }`}
+                >
+                  {isRecording ? (
+                    <>
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse mr-2" />
+                      녹음 중지
+                    </>
+                  ) : (
+                    "🎙️ 녹음 시작"
+                  )}
+                </Button>
+                {isRecording && <StatusPill text="REC" variant="recording" />}
+                {isAnalyzing && (
+                  <span className="text-xs text-blue-500 animate-pulse">분석 중...</span>
+                )}
                 <Button
                   onClick={onEnd}
                   variant="outline"
@@ -681,6 +969,15 @@ export default function AgendaTrackerScreen({
               </div>
             </div>
 
+            {/* 현재 인식 중인 텍스트 표시 */}
+            {isRecording && currentTranscript && (
+              <div className="px-6 py-2 bg-blue-50 border-b border-blue-100">
+                <p className="text-sm text-blue-700">
+                  <span className="font-medium">인식 중: </span>
+                  {currentTranscript}
+                </p>
+              </div>
+            )}
 
             <div
               className="flex-grow p-8 bg-gradient-to-br from-[#FAFBFC] to-white relative overflow-hidden"
