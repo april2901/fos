@@ -13,7 +13,7 @@ interface TopNavBarProps {
 
 export function TopNavBar({ title, showUser = true, userName = "김민수", showHomeButton = true, onHomeClick, showBackButton = false, onBackClick }: TopNavBarProps) {
   return (
-    <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-[rgba(0,0,0,0.08)] z-50 flex items-center justify-between px-6">
+    <div className="sticky relative top-0 left-0 right-0 h-16 bg-white border-b border-[rgba(0,0,0,0.08)] z-50 flex items-center justify-between px-6">
       <div className="flex items-center gap-2">
         {showHomeButton ? (
           <>
@@ -42,7 +42,7 @@ export function TopNavBar({ title, showUser = true, userName = "김민수", show
       </div>
       
       {title && (
-        <h1 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-lg font-semibold text-[#030213]">
+        <h1 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-lg font-semibold text-[#030213] whitespace-nowrap pointer-events-none">
           {title}
         </h1>
       )}

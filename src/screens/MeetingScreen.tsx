@@ -549,7 +549,7 @@ export default function MeetingScreen({
       />
 
       {/* Canvas */}
-      <div className="w-[80%] flex flex-col relative">
+      <div className="flex-1 flex flex-col relative">
         {/* Recording Indicator */}
         <div className="absolute top-6 right-6 z-50">
           <motion.div
