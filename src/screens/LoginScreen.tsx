@@ -5,6 +5,7 @@ import { Checkbox } from "../components/ui/checkbox";
 import { Logo } from "../components/Logo";
 import { Eye, EyeOff, Building2, Loader2, AlertCircle, Info } from "lucide-react";
 import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -16,19 +17,20 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
-  
+
   // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
   const [loginError, setLoginError] = useState("");
-  
+
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const isEmailValid = emailRegex.test(email);
   const isPasswordValid = password.length > 0;
   const isFormValid = isEmailValid && isPasswordValid;
-  
+
   const showEmailError = emailTouched && email.length > 0 && !isEmailValid;
   const showPasswordError = passwordTouched && password.length === 0;
 
@@ -41,17 +43,44 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
     }
   };
 
+  // Google OAuth login
+  const handleGoogleLogin = async () => {
+    try {
+      setIsGoogleLoading(true);
+      setLoginError("");
+
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin,
+        },
+      });
+
+      if (error) {
+        console.error('Google 로그인 오류:', error);
+        setLoginError('Google 로그인에 실패했습니다. 다시 시도해주세요.');
+        setIsGoogleLoading(false);
+      }
+      // Note: If successful, user will be redirected to Google login page
+      // and then back to our app, so we don't need to set loading to false
+    } catch (err) {
+      console.error('Google 로그인 예외:', err);
+      setLoginError('Google 로그인 중 오류가 발생했습니다.');
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleLogin = async () => {
     if (!isFormValid) return;
-    
+
     setIsLoading(true);
     setLoginError("");
-    
+
     // Simulate API call
     setTimeout(() => {
       // Simulate random success/failure for demo
       const success = Math.random() > 0.3; // 70% success rate
-      
+
       if (success) {
         onLogin();
       } else {
@@ -95,17 +124,16 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           {/* Email Field */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium">이메일</Label>
-            <Input 
-              id="email" 
-              type="email" 
+            <Input
+              id="email"
+              type="email"
               placeholder="example@company.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onBlur={handleEmailBlur}
               onKeyDown={handleKeyPress}
-              className={`h-11 rounded-lg border-[rgba(0,0,0,0.1)] ${
-                showEmailError || loginError ? 'border-red-400 focus-visible:ring-red-400' : ''
-              }`}
+              className={`h-11 rounded-lg border-[rgba(0,0,0,0.1)] ${showEmailError || loginError ? 'border-red-400 focus-visible:ring-red-400' : ''
+                }`}
             />
             {showEmailError && (
               <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1">
@@ -119,8 +147,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           <div className="space-y-2">
             <Label htmlFor="password" className="text-sm font-medium">비밀번호</Label>
             <div className="relative">
-              <Input 
-                id="password" 
+              <Input
+                id="password"
                 type={showPassword ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
@@ -130,9 +158,8 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   handleKeyDown(e);
                   handleKeyPress(e);
                 }}
-                className={`h-11 rounded-lg border-[rgba(0,0,0,0.1)] pr-10 ${
-                  showPasswordError || loginError ? 'border-red-400 focus-visible:ring-red-400' : ''
-                }`}
+                className={`h-11 rounded-lg border-[rgba(0,0,0,0.1)] pr-10 ${showPasswordError || loginError ? 'border-red-400 focus-visible:ring-red-400' : ''
+                  }`}
               />
               <button
                 type="button"
@@ -146,7 +173,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 )}
               </button>
             </div>
-            
+
             {/* CapsLock Warning */}
             {capsLockOn && password.length > 0 && (
               <div className="flex items-center gap-1.5 text-xs text-amber-600 mt-1">
@@ -154,7 +181,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 <span>CapsLock이 켜져 있습니다.</span>
               </div>
             )}
-            
+
             {showPasswordError && (
               <div className="flex items-center gap-1.5 text-xs text-red-600 mt-1">
                 <AlertCircle className="size-3" />
@@ -173,10 +200,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
           {/* Remember Me Checkbox */}
           <div className="flex items-start gap-2">
-            <Checkbox 
-              id="remember" 
+            <Checkbox
+              id="remember"
               checked={rememberMe}
-              onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+              onCheckedChange={(checked: boolean) => setRememberMe(checked)}
             />
             <div className="flex flex-col">
               <label htmlFor="remember" className="text-sm text-[#030213] cursor-pointer">
@@ -190,14 +217,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           </div>
 
           {/* Login Button */}
-          <Button 
+          <Button
             onClick={handleLogin}
             disabled={!isFormValid || isLoading}
-            className={`w-full h-11 rounded-lg shadow-sm transition-all ${
-              isFormValid && !isLoading
-                ? 'bg-[#0064FF] hover:bg-[#0052CC] text-white'
-                : 'bg-gray-200 text-gray-400 cursor-not-allowed hover:bg-gray-200'
-            }`}
+            className={`w-full h-11 rounded-lg shadow-sm transition-all ${isFormValid && !isLoading
+              ? 'bg-[#0064FF] hover:bg-[#0052CC] text-white'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed hover:bg-gray-200'
+              }`}
           >
             {isLoading ? (
               <span className="flex items-center gap-2">
@@ -211,15 +237,26 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
           {/* Organization Login */}
           <div className="pt-4 border-t border-[rgba(0,0,0,0.08)]">
-            <Button 
+            <Button
               variant="outline"
+              onClick={handleGoogleLogin}
+              disabled={isGoogleLoading}
               className="w-full h-11 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-lg gap-2"
             >
-              <Building2 className="size-4" />
-              조직 계정으로 로그인
+              {isGoogleLoading ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" />
+                  Google 로그인 중...
+                </>
+              ) : (
+                <>
+                  <Building2 className="size-4" />
+                  Google 계정으로 로그인
+                </>
+              )}
             </Button>
             <p className="text-xs text-[#717182] text-center mt-2">
-              조직 계정 SSO (Google Workspace 또는 Microsoft Azure)
+              Google Workspace 계정으로 간편하게 로그인하세요
             </p>
           </div>
         </div>

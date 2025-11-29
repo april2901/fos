@@ -1,5 +1,6 @@
 // src/App.tsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabaseClient';
 import LoginScreen from './screens/LoginScreen';
 import MainScreen from './screens/MainScreen';
 import PresentationSetupScreen from './screens/PresentationSetupScreen';
@@ -81,6 +82,34 @@ export default function App() {
     edges: [],
   });
 
+  // Supabase 인증 상태 관리
+  useEffect(() => {
+    // 현재 세션 확인
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        // 로그인된 상태면 main 화면으로
+        if (currentScreen === 'login') {
+          setCurrentScreen('main');
+        }
+      }
+    });
+
+    // 인증 상태 변경 리스너
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        // 로그인 성공
+        setCurrentScreen('main');
+      } else {
+        // 로그아웃
+        setCurrentScreen('login');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // 메인으로 돌아갈 때 전체 상태 정리
   const navigateToMain = () => {
     setCurrentScreen('main');
@@ -88,10 +117,7 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
-<<<<<<< HEAD
-=======
     setExtractedKeywords([]);
->>>>>>> d3f05d0f3a3f4d91894b4f3dd85223617cab85e2
     setAgendaItems([]);
     setAgendaMapData({ nodes: [], edges: [] });
   };
@@ -136,10 +162,7 @@ export default function App() {
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
-<<<<<<< HEAD
-=======
               setExtractedKeywords([]);
->>>>>>> d3f05d0f3a3f4d91894b4f3dd85223617cab85e2
               setAgendaItems([]);
               setAgendaMapData({ nodes: [], edges: [] });
               setCurrentScreen('agenda');
