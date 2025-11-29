@@ -73,7 +73,7 @@ export default function App() {
 
   // 아젠다(논점 지도) 공통 상태
   const [agendaItems, setAgendaItems] = useState<AgendaItem[]>([]);
-  
+
   // 아젠다 맵 데이터 상태
   const [agendaMapData, setAgendaMapData] = useState<AgendaMapData>({
     nodes: [],
@@ -87,13 +87,8 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
-<<<<<<< HEAD
-    setExtractedKeywords([]);
-    setAgendaItems([]); // 회의/아젠다 리셋
-=======
     setAgendaItems([]);
     setAgendaMapData({ nodes: [], edges: [] });
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
   };
 
   // Back navigation logic based on screen flow
@@ -136,13 +131,8 @@ export default function App() {
               setHasPresentation(false);
               setPresentationTitle('');
               setPresentationScript('');
-<<<<<<< HEAD
-              setExtractedKeywords([]);
-              setAgendaItems([]); // 새 회의이므로 아젠다 초기화
-=======
               setAgendaItems([]);
               setAgendaMapData({ nodes: [], edges: [] });
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
               setCurrentScreen('agenda');
             }}
             onStartPresentation={() => setCurrentScreen('setup')}

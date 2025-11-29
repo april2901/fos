@@ -346,10 +346,6 @@ export default function AgendaTrackerScreen({
       { from: 2, to: 5 },
     ]);
 
-<<<<<<< HEAD
-    // 노드 2에 level 추가
-=======
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
     nodes.update({
       id: 2,
       level: 1,
@@ -426,20 +422,12 @@ export default function AgendaTrackerScreen({
       selectedNodeRef.current = nodeId;
       setSelectedNodeId(nodeId);
 
-<<<<<<< HEAD
-      // 팝오버 위치 계산
-      if (networkRef.current && containerRef.current) {
-        const positions = networkRef.current.getPositions([nodeId]);
-        const canvasPos = networkRef.current.canvasToDOM(positions[nodeId]);
-        const containerRect = containerRef.current.getBoundingClientRect();
-=======
       if (networkRef.current && containerRef.current) {
         const positions = networkRef.current.getPositions([nodeId]);
         const canvasPos =
           networkRef.current.canvasToDOM(positions[nodeId]);
         const containerRect =
           containerRef.current.getBoundingClientRect();
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
 
         setPopoverPosition({
           x: canvasPos.x - containerRect.left + 20,
@@ -670,16 +658,16 @@ export default function AgendaTrackerScreen({
         onBackClick={onBack}
       />
 
-      <div 
+      <div
         className="px-8 py-6 pb-10 flex gap-6"
-        style={{ height: "640px" }} 
+        style={{ height: "640px" }}
       >
         {/* Left - Agenda Map */}
         <div className="flex-[2.5] flex flex-col h-full">
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(0,0,0,0.06)] shrink-0">
               <h3 className="text-base font-semibold text-[#030213]">실시간 논점 지도</h3>
-              
+
               <div className="flex items-center gap-3">
                 <StatusPill text="REC" variant="recording" />
                 <Button
@@ -692,12 +680,7 @@ export default function AgendaTrackerScreen({
               </div>
             </div>
 
-<<<<<<< HEAD
-            {/* Map Canvas */}
             <div
-=======
-            <div 
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
               className="flex-grow p-8 bg-gradient-to-br from-[#FAFBFC] to-white relative overflow-hidden"
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
@@ -715,66 +698,63 @@ export default function AgendaTrackerScreen({
                   backgroundSize: "20px 20px",
                 }}
               />
-<<<<<<< HEAD
 
-              {/* Node Detail Popover */}
-=======
-              
               {/* 팝오버 등 기존 로직 유지 */}
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
-              {selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
-                <div
-                  className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
-                  style={{
-                    left: `${popoverPosition.x}px`,
-                    top: `${popoverPosition.y}px`,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-grow pr-2">
-                      <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
-                        {nodeMetadata[selectedNodeId].label}
-                      </h4>
-                      <p className="text-xs text-[#717182]">
-                        {nodeMetadata[selectedNodeId].timestamp}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedNodeId(null);
-                        setPopoverPosition(null);
-                        networkRef.current?.unselectAll();
-                      }}
-                      className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">유형</p>
-                      <AgendaTag type={nodeMetadata[selectedNodeId].category} />
+              {
+                selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
+                  <div
+                    className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
+                    style={{
+                      left: `${popoverPosition.x}px`,
+                      top: `${popoverPosition.y}px`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-grow pr-2">
+                        <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
+                          {nodeMetadata[selectedNodeId].label}
+                        </h4>
+                        <p className="text-xs text-[#717182]">
+                          {nodeMetadata[selectedNodeId].timestamp}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedNodeId(null);
+                          setPopoverPosition(null);
+                          networkRef.current?.unselectAll();
+                        }}
+                        className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
+                      >
+                        <X className="size-4" />
+                      </button>
                     </div>
 
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">요약</p>
-                      <p className="text-xs text-[#030213] leading-relaxed bg-[#F4F6FF] p-2.5 rounded-lg">
-                        {nodeMetadata[selectedNodeId].summary}
-                      </p>
-                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">유형</p>
+                        <AgendaTag type={nodeMetadata[selectedNodeId].category} />
+                      </div>
 
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">발화 전문</p>
-                      <div className="text-xs text-[#030213] leading-relaxed bg-[#FAFBFC] p-2.5 rounded-lg border border-[rgba(0,0,0,0.06)] max-h-32 overflow-y-auto">
-                        {nodeMetadata[selectedNodeId].transcript}
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">요약</p>
+                        <p className="text-xs text-[#030213] leading-relaxed bg-[#F4F6FF] p-2.5 rounded-lg">
+                          {nodeMetadata[selectedNodeId].summary}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">발화 전문</p>
+                        <div className="text-xs text-[#030213] leading-relaxed bg-[#FAFBFC] p-2.5 rounded-lg border border-[rgba(0,0,0,0.06)] max-h-32 overflow-y-auto">
+                          {nodeMetadata[selectedNodeId].transcript}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )
+              }
+            </div >
 
             <div className="border-t border-[rgba(0,0,0,0.06)] p-5 bg-white shrink-0">
               <p className="text-xs text-[#717182] mb-3 font-medium">실시간 STT 로그</p>
@@ -783,22 +763,11 @@ export default function AgendaTrackerScreen({
                 {sttEntries.map((entry) => (
                   <div
                     key={entry.id}
-<<<<<<< HEAD
-                    ref={(el) => {
-                      sttEntryRefs.current[entry.id] = el;
-                    }}
-                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
-                      ? "bg-blue-100 border-blue-300"
-                      : "border-transparent"
-                      }`}
-=======
                     ref={(el) => { sttEntryRefs.current[entry.id] = el; }}
-                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${
-                      selectedNodeId === entry.nodeId
+                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
                         ? "bg-blue-100 border-blue-300"
                         : "border-transparent"
-                    }`}
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
+                      }`}
                   >
                     <span className="text-[#717182] text-xs mr-2">{entry.timestamp}</span>
                     {entry.text}
@@ -820,38 +789,20 @@ export default function AgendaTrackerScreen({
                     className="flex-grow bg-transparent outline-none text-sm"
                   />
                   <div className="flex gap-1.5">
-<<<<<<< HEAD
-                    {(["리서치", "아이디어", "개발", "디자인", "일반"] as const).map(
-                      (type) => (
-                        <button
-                          key={type}
-                          onClick={() => setSelectedNodeType(type)}
-                          className={`transition-all ${selectedNodeType === type
-                            ? categoryStyles[type] + " border"
-                            : "opacity-50 hover:opacity-100"
-                            }`}
-                        >
-                          <AgendaTag type={type} asButton={false} />
-                        </button>
-                      )
-                    )}
-=======
                     {(["리서치", "아이디어", "개발", "디자인", "일반"] as const).map((type) => (
                       <button
                         key={type}
                         onClick={() => setSelectedNodeType(type)}
-                        className={`transition-all ${
-                          selectedNodeType === type
-                            ? categoryStyles[type] + " border"
-                            : "opacity-50 hover:opacity-100"
-                        }`}
+                        className={`transition-all ${selectedNodeType === type
+                          ? categoryStyles[type] + " border"
+                          : "opacity-50 hover:opacity-100"
+                          }`}
                       >
                         <AgendaTag type={type} asButton={false} />
                       </button>
                     ))}
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
-                  </div>
-                </div>
+                  </div >
+                </div >
                 <button
                   onClick={handleCreateNode}
                   className="size-10 rounded-lg bg-[#0064FF] flex items-center justify-center hover:bg-[#0052CC] transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
@@ -859,39 +810,16 @@ export default function AgendaTrackerScreen({
                 >
                   <Plus className="size-5 text-white" />
                 </button>
-              </div>
-            </div>
-          </div>
-        </div>
+              </div >
+            </div >
+          </div >
+        </div >
 
         {/* Right - Important Items Dashboard */}
-        <div className="flex-1 h-full">
+        < div className="flex-1 h-full" >
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col overflow-y-auto">
             <h3 className="text-base font-semibold text-[#030213] mb-6">실시간 중요 사항</h3>
 
-<<<<<<< HEAD
-            {/* Keywords Section - From Presentation */}
-            {extractedKeywords && extractedKeywords.length > 0 && (
-              <div className="mb-6 pb-6 border-b border-[rgba(0,0,0,0.06)]">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="size-1.5 rounded-full bg-blue-500" />
-                  <p className="text-sm font-semibold text-[#030213]">발표 키워드</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {extractedKeywords.map((keyword, index) => (
-                    <div
-                      key={index}
-                      className="px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 text-sm font-medium">
-                      {keyword}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Decision Section */}
-=======
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <div className="size-1.5 rounded-full bg-purple-500" />
@@ -910,12 +838,7 @@ export default function AgendaTrackerScreen({
                       : "border-[rgba(0,0,0,0.1)]"
                       } hover:shadow-md hover:border-[#0064FF]`}
                   >
-<<<<<<< HEAD
-                    {editingItem?.id === item.id &&
-                      editingItem?.type === "decision" ? (
-=======
                     {editingItem?.id === item.id && editingItem?.type === "decision" ? (
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -947,11 +870,13 @@ export default function AgendaTrackerScreen({
                           <Trash2 className="size-4" />
                         </button>
                       </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+                    )
+                    }
+                  </div >
+                ))
+                }
+              </div >
+            </div >
 
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
@@ -971,12 +896,7 @@ export default function AgendaTrackerScreen({
                       : "border-[rgba(0,0,0,0.1)]"
                       } hover:shadow-md hover:border-[#0064FF]`}
                   >
-<<<<<<< HEAD
-                    {editingItem?.id === item.id &&
-                      editingItem?.type === "action" ? (
-=======
                     {editingItem?.id === item.id && editingItem?.type === "action" ? (
->>>>>>> 55868c58ab589cef122dd453c5b69fa50a537b35
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -1008,11 +928,12 @@ export default function AgendaTrackerScreen({
                           <Trash2 className="size-4" />
                         </button>
                       </div>
-                    )}
-                  </div>
+                    )
+                    }
+                  </div >
                 ))}
-              </div>
-            </div>
+              </div >
+            </div >
 
             <div className="mt-auto pt-4 border-t border-[rgba(0,0,0,0.06)]">
               <div className="flex items-start gap-2 text-xs text-[#717182] bg-[#F4F6FF] p-3 rounded-lg">
@@ -1022,9 +943,9 @@ export default function AgendaTrackerScreen({
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </div >
+        </div >
+      </div >
+    </div >
   );
 }
