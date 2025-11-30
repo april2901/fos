@@ -65,6 +65,10 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const [speed, setSpeed] = useState<"느림" | "적정" | "빠름">("적정");
   const [volume, setVolume] = useState(6.5);
   const [fontSize, setFontSize] = useState(32); // Default font size in px
+  const [modifiedScript, setModifiedScript] = useState<string>(script);
+  const [reconstructedSuggestion, setReconstructedSuggestion] = useState<string | null>(null);
+  const [isReconstructing, setIsReconstructing] = useState(false);
+  const [showSuggestionBanner, setShowSuggestionBanner] = useState(false);
 
   // Web Speech API states
   const [isListening, setIsListening] = useState(false);
@@ -75,11 +79,18 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const isRunningRef = useRef(isRunning); // isRunning을 ref로 추적
   const pendingApiCall = useRef(false); // API 호출 중복 방지
   const lastApiCallTime = useRef(0); // 마지막 API 호출 시간
+  const fullScriptRef = useRef(modifiedScript); // modifiedScript를 ref로 추적 (콜백에서 최신값 사용)
+  const intentionalStopRef = useRef(false); // 의도적 중지 여부 (일시정지 시 true)
 
   // isRunning 상태를 ref에 동기화
   useEffect(() => {
     isRunningRef.current = isRunning;
   }, [isRunning]);
+
+  // fullScript(modifiedScript) 변경 시 ref 동기화
+  useEffect(() => {
+    fullScriptRef.current = modifiedScript;
+  }, [modifiedScript]);
 
   // Extract keywords from script using Gemini API
   useEffect(() => {
@@ -109,7 +120,16 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     extractKeywords();
   }, [script, onKeywordsExtracted]);
 
-  const fullScript = script;
+  // Use a modifiable copy of the script so we can inject suggested reconstruction
+  const fullScript = modifiedScript;
+
+  // Keep modifiedScript in sync when prop `script` changes (new session)
+  useEffect(() => {
+    setModifiedScript(script);
+    setReconstructedSuggestion(null);
+    setShowSuggestionBanner(false);
+    setSkippedRanges([]);
+  }, [script]);
 
   const totalPages = 20;
 
@@ -266,6 +286,60 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const allPhrases = useMemo(() => {
     return parsedScript.flatMap(sentence => sentence.phrases);
   }, [parsedScript]);
+
+  // Trigger LLM reconstruction when skipped ranges grow large enough
+  useEffect(() => {
+    if (!skippedRanges || skippedRanges.length === 0) return;
+    if (isReconstructing || reconstructedSuggestion) return; // already working or have suggestion
+
+    // Compute total skipped chars
+    const totalSkippedChars = skippedRanges.reduce((acc, r) => acc + Math.max(0, r.end - r.start), 0);
+
+    // Count fully skipped sentences
+    let skippedSentences = 0;
+    for (const sentence of parsedScript) {
+      for (const range of skippedRanges) {
+        if (range.start <= sentence.startIndex && range.end >= sentence.endIndex) {
+          skippedSentences++;
+          break;
+        }
+      }
+    }
+
+    // Thresholds: 2 full sentences or >120 chars skipped
+    const shouldCall = skippedSentences >= 2 || totalSkippedChars >= 120;
+    if (!shouldCall) return;
+
+    (async () => {
+      setIsReconstructing(true);
+      try {
+        const resp = await fetch('/api/reconstruct-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            script: fullScript,
+            skippedRanges,
+            currentIndex: currentCharIndex,
+          }),
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.reconstructed) {
+            setReconstructedSuggestion(data.reconstructed.trim());
+            setShowSuggestionBanner(true);
+          }
+        } else {
+          console.error('Reconstruct API failed:', resp.statusText);
+        }
+      } catch (err) {
+        console.error('Reconstruct call error:', err);
+      } finally {
+        setIsReconstructing(false);
+      }
+    })();
+
+  }, [skippedRanges, parsedScript, currentCharIndex, fullScript, isReconstructing, reconstructedSuggestion]);
 
   // currentCharIndex가 변경되면 해당하는 문장/구절 인덱스 계산
   useEffect(() => {
@@ -459,10 +533,10 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     };
 
     recognition.onend = () => {
-      console.log('🔴 음성 인식 종료됨, isRunning:', isRunningRef.current);
+      console.log('🔴 음성 인식 종료됨, isRunning:', isRunningRef.current, 'intentionalStop:', intentionalStopRef.current);
       setIsListening(false);
-      // isRunning이 true면 자동 재시작
-      if (isRunningRef.current) {
+      // 의도적 중지가 아니고 isRunning이 true면 자동 재시작 (브라우저가 자동으로 끊은 경우)
+      if (isRunningRef.current && !intentionalStopRef.current) {
         setTimeout(() => {
           try {
             recognition.start();
@@ -485,8 +559,8 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       // no-speech는 조용할 때 발생 - 에러 아님
       if (event.error === "no-speech") {
         console.log('🔇 음성 감지 안 됨 - 재시작 시도');
-        // no-speech 후 자동 재시작
-        if (isRunningRef.current) {
+        // 의도적 중지가 아니고 isRunning이 true면 자동 재시작
+        if (isRunningRef.current && !intentionalStopRef.current) {
           setTimeout(() => {
             try {
               recognition.start();
@@ -552,14 +626,14 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       pendingApiCall.current = true;
       lastApiCallTime.current = now;
 
-      // 백엔드 API를 통한 음성-스크립트 매칭
+      // 백엔드 API를 통한 음성-스크립트 매칭 (최신 modifiedScript 사용)
       try {
         const response = await fetch('/api/speech-comparison', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             spokenText: searchText,
-            scriptText: fullScript,
+            scriptText: fullScriptRef.current,
             lastMatchedIndex: currentCharIndexRef.current,
           }),
         });
@@ -599,7 +673,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
         }
       }
     };
-  }, [fullScript]); // fullScript가 변경될 때만 재초기화
+  }, []); // 초기화는 한 번만, fullScriptRef를 통해 최신 스크립트 사용
 
   const handlePlayPause = async () => {
     const newRunningState = !isRunning;
@@ -612,6 +686,9 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
         setSkippedRanges([]); // 틀린 부분도 초기화
       }
 
+      // 의도적 중지 플래그 해제
+      intentionalStopRef.current = false;
+
       // 음성 인식 시작
       if (recognitionRef.current) {
         try {
@@ -623,11 +700,13 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
         }
       }
     } else {
-      // 일시정지
+      // 일시정지 - 의도적 중지 플래그 설정
+      intentionalStopRef.current = true;
+
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-          console.log('⏸️ 발표 일시정지 - 음성 인식 중지');
+          console.log('⏸️ 발표 일시정지 - 음성 인식 완전 중지');
         } catch (err) {
           // 이미 중지된 경우 무시
         }
@@ -770,6 +849,42 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                     )}
                   </div>
                 </div>
+
+                {/* 누락 보완 제안 (LLM) */}
+                {reconstructedSuggestion && showSuggestionBanner && (
+                  <div className="mt-3 bg-yellow-50 border-l-4 border-yellow-300 p-3 rounded">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-xs text-[#5A4D00] font-medium mb-1">누락된 내용을 자연스럽게 포함한 제안</p>
+                        <div className="max-h-40 overflow-y-auto text-sm text-[#3b2f00] leading-relaxed whitespace-pre-wrap">
+                          {reconstructedSuggestion}
+                        </div>
+                        <p className="text-xs text-[#5A4D00] mt-2">자동 제안은 편집 없이도 발표에 참고용으로 활용할 수 있습니다.</p>
+                      </div>
+                      <div className="ml-3 flex flex-col gap-2">
+                        <button
+                          onClick={() => {
+                            // apply suggestion by injecting at current position
+                            const before = modifiedScript.slice(0, currentCharIndex);
+                            const after = modifiedScript.slice(currentCharIndex);
+                            const merged = `${before}${before.endsWith(' ') ? '' : ' '}${reconstructedSuggestion}${reconstructedSuggestion.endsWith(' ') ? '' : ' '}${after}`;
+                            setModifiedScript(merged);
+                            setShowSuggestionBanner(false);
+                            setReconstructedSuggestion(null);
+                            setSkippedRanges([]);
+                            // 누적 음성 인식 결과도 리셋하여 새 스크립트 기준으로 매칭 시작
+                            setCumulativeTranscript("");
+                          }}
+                          className="h-8 bg-[#0064FF] text-white rounded px-3 text-xs"
+                        >적용</button>
+                        <button
+                          onClick={() => { setShowSuggestionBanner(false); setReconstructedSuggestion(null); }}
+                          className="h-8 bg-white border text-[#5A4D00] rounded px-3 text-xs"
+                        >닫기</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* 발표 속도 */}
                 <div>
