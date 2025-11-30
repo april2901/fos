@@ -251,7 +251,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
               ) : (
                 <>
                   <Building2 className="size-4" />
-                  Google 계정으로 로그인
+                  Google 계정으로 회원 가입 및 로그인
                 </>
               )}
             </Button>
