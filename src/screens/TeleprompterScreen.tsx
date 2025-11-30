@@ -67,6 +67,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   const [fontSize, setFontSize] = useState(32); // Default font size in px
   const [modifiedScript, setModifiedScript] = useState<string>(script);
   const [reconstructedSuggestion, setReconstructedSuggestion] = useState<string | null>(null);
+  const [suggestionInsertIndex, setSuggestionInsertIndex] = useState<number>(0); // LLM이 계산한 삽입 위치
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [showSuggestionBanner, setShowSuggestionBanner] = useState(false);
 
@@ -327,6 +328,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           const data = await resp.json();
           if (data && data.reconstructed) {
             setReconstructedSuggestion(data.reconstructed.trim());
+            setSuggestionInsertIndex(data.insertIndex || currentCharIndex); // API에서 받은 삽입 위치 사용
             setShowSuggestionBanner(true);
           }
         } else {
@@ -864,9 +866,10 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
                       <div className="ml-3 flex flex-col gap-2">
                         <button
                           onClick={() => {
-                            // apply suggestion by injecting at current position
-                            const before = modifiedScript.slice(0, currentCharIndex);
-                            const after = modifiedScript.slice(currentCharIndex);
+                            // API에서 계산한 위치(1문장 뒤)에 삽입
+                            const insertAt = Math.min(suggestionInsertIndex, modifiedScript.length);
+                            const before = modifiedScript.slice(0, insertAt);
+                            const after = modifiedScript.slice(insertAt);
                             const merged = `${before}${before.endsWith(' ') ? '' : ' '}${reconstructedSuggestion}${reconstructedSuggestion.endsWith(' ') ? '' : ' '}${after}`;
                             setModifiedScript(merged);
                             setShowSuggestionBanner(false);
