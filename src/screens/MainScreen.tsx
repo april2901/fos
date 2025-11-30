@@ -1,6 +1,7 @@
-
 import { Button } from "../components/ui/button";
-import { Users, Monitor } from "lucide-react";
+import { Users, Monitor, LogOut } from "lucide-react";
+import { useState } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 interface MainScreenProps {
   onStartMeeting: () => void;
@@ -9,10 +10,34 @@ interface MainScreenProps {
 }
 
 export default function MainScreen({ onStartMeeting, onStartPresentation, onBack }: MainScreenProps) {
-  return (
-  <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white">
-    <div className="flex flex-col items-center justify-center h-full px-12">
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
+  const handleLogout = async () => {
+    try {
+      setIsLoggingOut(true);
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('로그아웃 오류:', error);
+      setIsLoggingOut(false);
+    }
+  };
+
+  return (
+    <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white">
+      {/* Logout - 우측 상단 */}
+      <div className="w-full flex justify-end p-6">
+        <Button
+          variant="outline"
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="flex items-center gap-2 rounded-full px-4 py-2 border-[rgba(0,0,0,0.1)] hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+        >
+          <LogOut className="size-4" />
+          <span className="text-sm">{isLoggingOut ? '로그아웃 중...' : '로그아웃'}</span>
+        </Button>
+      </div>
+
+      <div className="flex flex-col items-center justify-center h-full px-12">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-2xl font-semibold text-[#030213] mt-16 mb-3">
@@ -41,7 +66,7 @@ export default function MainScreen({ onStartMeeting, onStartPresentation, onBack
               onClick={onStartMeeting}
               className="w-full h-11 bg-[#10B981] hover:bg-[#059669] text-white rounded-lg shadow-sm transition-transform hover:scale-[1.05] active:scale-[0.98]"
             >
-              회의 시작하기 →
+              회의 시작하기
             </Button>
           </div>
 
@@ -61,7 +86,7 @@ export default function MainScreen({ onStartMeeting, onStartPresentation, onBack
               onClick={onStartPresentation}
               className="w-full h-11 bg-[#0064FF] hover:bg-[#0052CC] text-white rounded-lg shadow-sm transition-transform hover:scale-[1.05] active:scale-[0.98]"
             >
-              발표 시작하기 →
+              발표 시작하기
             </Button>
           </div>
         </div>
