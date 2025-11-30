@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import { AgendaTag } from "../components/AgendaTag";
 import { ZoomIn, ZoomOut, Download, Move } from "lucide-react";
 import { AgendaMapData } from "../App";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { DataSet, Network } from "vis-network/standalone";
 
 interface MeetingSummaryScreenProps {
@@ -12,7 +12,6 @@ interface MeetingSummaryScreenProps {
   onBack: () => void;
 }
 
-// vis-network 노드 색상
 const CATEGORY_COLORS: Record<string, { background: string; border: string }> = {
   리서치: { background: "rgba(220, 252, 231, 0.9)", border: "#22C55E" },
   아이디어: { background: "rgba(255, 243, 210, 0.9)", border: "#F97316" },
@@ -28,17 +27,14 @@ export default function MeetingSummaryScreen({
 }: MeetingSummaryScreenProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<Network | null>(null);
-  // 추가: 나중에 색 바꾸려고 nodes DataSet을 기억해두는 ref
   const nodesRef = useRef<DataSet<any> | null>(null);
 
-  // vis-network 초기화
   useEffect(() => {
     if (!containerRef.current || networkRef.current) return;
 
     const nodes = new DataSet<any>();
     const edges = new DataSet<any>();
 
-    // 부모에서 받은 데이터로 노드 추가
     agendaMapData.nodes.forEach((node) => {
       const color = CATEGORY_COLORS[node.category] || CATEGORY_COLORS["일반"];
       nodes.add({
@@ -51,10 +47,8 @@ export default function MeetingSummaryScreen({
       });
     });
 
-    // 여기서 ref에 저장
     nodesRef.current = nodes;
 
-    // 부모에서 받은 데이터로 엣지 추가
     agendaMapData.edges.forEach((edge) => {
       edges.add({ from: edge.from, to: edge.to });
     });
@@ -117,7 +111,7 @@ export default function MeetingSummaryScreen({
         networkRef.current.destroy();
         networkRef.current = null;
       }
-      nodesRef.current = null; // 정리
+      nodesRef.current = null;
     };
   }, [agendaMapData]);
 
@@ -141,14 +135,58 @@ export default function MeetingSummaryScreen({
     }
   };
 
-  // 타임라인 클릭 시: 위 Agenda Map에서 해당 노드 포커스 + 반짝임
+  const majorTimelineNodes = useMemo(() => {
+    const MIN_ITEMS = 5;
+    const MAX_ITEMS = 6;
+
+    const { nodes, edges } = agendaMapData;
+    if (!nodes || nodes.length === 0) return [];
+
+    const childCount: Record<number, number> = {};
+    edges?.forEach((edge) => {
+      childCount[edge.from] = (childCount[edge.from] || 0) + 1;
+    });
+
+    const sortNodes = (arr: typeof nodes) =>
+      [...arr].sort((a, b) => {
+        const ta = a.timestamp ?? "";
+        const tb = b.timestamp ?? "";
+
+        if (ta && tb && ta !== tb) {
+          return ta.localeCompare(tb);
+        }
+        if (ta && !tb) return -1;
+        if (!ta && tb) return 1;
+        return a.id - b.id;
+      });
+
+    const centralNodes = nodes.filter(
+      (node) => (childCount[node.id] || 0) >= 3
+    );
+    let result = sortNodes(centralNodes);
+
+    if (result.length < MIN_ITEMS) {
+      const sortedAll = sortNodes(nodes);
+      for (const n of sortedAll) {
+        if (result.find((r) => r.id === n.id)) continue;
+        result.push(n);
+        if (result.length >= MIN_ITEMS) break;
+      }
+    }
+
+    if (nodes.length < MIN_ITEMS) {
+      result = sortNodes(nodes);
+    }
+
+    return result.slice(0, MAX_ITEMS);
+  }, [agendaMapData]);
+
   const handleTimelineClick = (nodeId: number) => {
     if (!networkRef.current || !nodesRef.current) return;
 
     const network = networkRef.current;
     const nodes = nodesRef.current;
 
-    // 노드 선택 + 포커스 이동
     network.selectNodes([nodeId]);
     network.focus(nodeId, {
       scale: 1.2,
@@ -158,12 +196,11 @@ export default function MeetingSummaryScreen({
       },
     });
 
-    // 색 반짝이는 효과
     const node = nodes.get(nodeId);
     if (!node) return;
 
     const originalColor = node.color || {};
-    const highlightBg = "#FEF3C7"; // 연노랑
+    const highlightBg = "#FEF3C7";
     const highlightBorder = "#FBBF24";
 
     nodes.update({
@@ -194,9 +231,7 @@ export default function MeetingSummaryScreen({
 
       <div className="px-8 py-6 h-full overflow-y-auto">
         <div className="max-w-7xl mx-auto">
-          {/* Top Section - Map + Summary */}
           <div className="flex gap-6 mb-6">
-            {/* Left - Final Agenda Map */}
             <div className="flex-[1.8] bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-semibold text-[#030213]">
@@ -242,7 +277,6 @@ export default function MeetingSummaryScreen({
               </div>
             </div>
 
-            {/* Right - Summary List */}
             <div className="flex-1 bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-base font-semibold text-[#030213]">
@@ -303,7 +337,6 @@ export default function MeetingSummaryScreen({
             </div>
           </div>
 
-          {/* Bottom Section - Timeline */}
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
             <h3 className="text-base font-semibold text-[#030213] mb-2">
               Meeting Agenda Timeline
@@ -316,8 +349,8 @@ export default function MeetingSummaryScreen({
             <div className="relative">
               <div className="absolute top-[16px] left-0 right-0 h-px bg-[#e9ebef]" />
               <div className="flex justify-between relative">
-                {agendaMapData.nodes.length > 0 ? (
-                  agendaMapData.nodes.slice(0, 5).map((node, index) => (
+                {majorTimelineNodes.length > 0 ? (
+                  majorTimelineNodes.map((node, index) => (
                     <TimelineItem
                       key={node.id}
                       time={node.timestamp || `10:0${index}`}

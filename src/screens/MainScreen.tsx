@@ -40,7 +40,7 @@ export default function MainScreen({ onStartMeeting, onStartPresentation, onBack
       <div className="flex flex-col items-center justify-center h-full px-12">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-2xl font-semibold text-[#030213] mt-16 mb-3">
+          <h1 className="text-2xl font-semibold text-[#030213] mt-8 mb-3">
             무엇을 준비하시겠어요?
           </h1>
           <p className="text-[#717182]">
