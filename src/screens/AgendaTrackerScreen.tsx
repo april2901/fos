@@ -334,106 +334,99 @@ export default function AgendaTrackerScreen({
   };
 
   // 분석 결과로 노드 생성
-const createNodeFromAnalysis = (
-  result: {
-    keyword: string;
-    category: Category;
-    summary: string;
-    isNewTopic: boolean;
-    relatedTopicIndex?: number;
-  },
-  transcript: string
-) => {
-  const existingIds = nodes.getIds() as number[];
-  const maxExistingId =
-    existingIds.length > 0 ? Math.max(...existingIds) : 0;
-  if (nodeCounterRef.current <= maxExistingId) {
-    nodeCounterRef.current = maxExistingId;
-  }
-  const newNodeId = ++nodeCounterRef.current;
-  const color = CATEGORY_COLORS[result.category];
-
-  // 부모 노드 결정
-  let parentId = 1;
-  if (
-    result.relatedTopicIndex !== undefined &&
-    result.relatedTopicIndex !== null
-  ) {
-    const existingNodes = Object.keys(nodeMetadata).map(Number);
-    if (existingNodes[result.relatedTopicIndex]) {
-      parentId = existingNodes[result.relatedTopicIndex];
+  const createNodeFromAnalysis = (
+    result: {
+      keyword: string;
+      category: Category;
+      summary: string;
+      isNewTopic: boolean;
+      relatedTopicIndex?: number;
+    },
+    transcript: string
+  ) => {
+    const existingIds = nodes.getIds() as number[];
+    const maxExistingId =
+      existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    if (nodeCounterRef.current <= maxExistingId) {
+      nodeCounterRef.current = maxExistingId;
     }
-  } else if (selectedNodeRef.current) {
-    parentId = selectedNodeRef.current;
-  }
+    const newNodeId = ++nodeCounterRef.current;
+    const color = CATEGORY_COLORS[result.category];
 
-  const parentNode = nodes.get(parentId);
-  const parentLevel =
-    parentNode?.level !== undefined ? parentNode.level : 0;
-
-  nodes.add({
-    id: newNodeId,
-    label:
-      result.keyword.length > 15
-        ? result.keyword.substring(0, 12) + "..."
-        : result.keyword,
-    level: parentLevel + 1,
-    fixed: { x: true, y: false },
-    color: {
-      background: color.background,
-      border: color.border,
-      highlight: {
-        background: color.highlightBackground,
-        border: color.highlightBorder,
-      },
-    },
-  });
-
-  edges.add({ from: parentId, to: newNodeId });
-
-  const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-
-  setNodeMetadata((prev) => ({
-    ...prev,
-    [newNodeId]: {
-      id: newNodeId,
-      label: result.keyword,
-      category: result.category,
-      timestamp: newTimestamp,
-      summary: result.summary,
-      transcript: transcript,
-    },
-  }));
-
-  
-  setSTTEntries((prev) => {
-    if (prev.length === 0) return prev;
-    const newEntries = [...prev];
-
-    for (let i = newEntries.length - 1; i >= 0; i--) {
-      const entry = newEntries[i];
-      if (entry.nodeId == null) {
-        newEntries[i] = {
-          ...entry,
-          type: result.category, 
-          nodeId: newNodeId,
-        };
-        break;
+    // 부모 노드 결정
+    let parentId = 1;
+    if (
+      result.relatedTopicIndex !== undefined &&
+      result.relatedTopicIndex !== null
+    ) {
+      const existingNodes = Object.keys(nodeMetadata).map(Number);
+      if (existingNodes[result.relatedTopicIndex]) {
+        parentId = existingNodes[result.relatedTopicIndex];
       }
+    } else if (selectedNodeRef.current) {
+      parentId = selectedNodeRef.current;
     }
-    return newEntries;
-  });
 
-  selectedNodeRef.current = newNodeId;
-  networkRef.current?.selectNodes([newNodeId]);
+    const parentNode = nodes.get(parentId);
+    const parentLevel =
+      parentNode?.level !== undefined ? parentNode.level : 0;
 
-  setTimeout(() => syncMapDataToParent(), 100);
-};
+    nodes.add({
+      id: newNodeId,
+      label:
+        result.keyword.length > 15
+          ? result.keyword.substring(0, 12) + "..."
+          : result.keyword,
+      level: parentLevel + 1,
+      fixed: { x: true, y: false },
+      color: {
+        background: color.background,
+        border: color.border,
+        highlight: {
+          background: color.highlightBackground,
+          border: color.highlightBorder,
+        },
+      },
+    });
 
+    edges.add({ from: parentId, to: newNodeId });
+
+    const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+
+    setNodeMetadata((prev) => ({
+      ...prev,
+      [newNodeId]: {
+        id: newNodeId,
+        label: result.keyword,
+        category: result.category,
+        timestamp: newTimestamp,
+        summary: result.summary,
+        transcript: transcript,
+      },
+    }));
+
+    // 이번 분석에 사용된 발화(아직 nodeId가 없는 로그) 전체를 새 노드에 연결
+    setSTTEntries((prev) =>
+      prev.map((entry) =>
+        entry.nodeId == null
+          ? {
+              ...entry,
+              type: result.category,
+              nodeId: newNodeId,
+            }
+          : entry
+      )
+    );
+
+    selectedNodeRef.current = newNodeId;
+    networkRef.current?.selectNodes([newNodeId]);
+
+    setTimeout(() => syncMapDataToParent(), 100);
+  };
 
   const initializeSpeechRecognition = () => {
     const SpeechRecognition =
@@ -513,8 +506,7 @@ const createNodeFromAnalysis = (
       if (isRecording) {
         try {
           recognition.start();
-        } catch (e) {
-        }
+        } catch (e) {}
       }
     };
 
@@ -773,6 +765,7 @@ const createNodeFromAnalysis = (
     }
   }, [nodeMetadata]);
 
+  // 새 로그가 추가될 때마다 스크롤을 가장 아래로
   useEffect(() => {
     if (sttLogContainerRef.current) {
       const el = sttLogContainerRef.current;
