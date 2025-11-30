@@ -347,43 +347,40 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
   useEffect(() => {
     if (parsedScript.length === 0) return;
 
-    // 현재 문자 위치에 해당하는 문장 찾기
+    // 현재 문자 위치에 해당하는 문장 찾기 (이진 검색 방식)
     let foundSentenceIndex = 0;
     let foundPhraseIndex = 0;
 
+    // 현재 위치보다 뒤에 있는 첫 번째 문장 찾기
     for (let sIdx = 0; sIdx < parsedScript.length; sIdx++) {
       const sentence = parsedScript[sIdx];
 
-      // 현재 위치가 이 문장 범위 안에 있는지 확인
-      if (currentCharIndex >= sentence.startIndex && currentCharIndex < sentence.endIndex) {
+      // 현재 위치가 이 문장 끝을 넘어섰으면 다음 문장으로
+      if (currentCharIndex >= sentence.endIndex) {
+        foundSentenceIndex = Math.min(sIdx + 1, parsedScript.length - 1);
+        foundPhraseIndex = 0;
+        continue; // 다음 문장 확인
+      }
+
+      // 현재 위치가 이 문장 범위 안에 있음
+      if (currentCharIndex >= sentence.startIndex) {
         foundSentenceIndex = sIdx;
 
         // 문장 내에서 현재 구절 찾기
         for (let pIdx = 0; pIdx < sentence.phrases.length; pIdx++) {
           const phrase = sentence.phrases[pIdx];
-          if (currentCharIndex >= phrase.startIndex && currentCharIndex < phrase.endIndex) {
+          if (currentCharIndex < phrase.endIndex) {
             foundPhraseIndex = pIdx;
             break;
-          } else if (currentCharIndex >= phrase.endIndex) {
-            // 이 구절을 지나쳤으면 다음 구절로
-            foundPhraseIndex = Math.min(pIdx + 1, sentence.phrases.length - 1);
           }
         }
-        break;
-      } else if (currentCharIndex >= sentence.endIndex) {
-        // 이 문장을 완전히 지나쳤으면 다음 문장으로
-        foundSentenceIndex = Math.min(sIdx + 1, parsedScript.length - 1);
-        foundPhraseIndex = 0;
+        break; // 문장 찾았으면 종료
       }
     }
 
-    // 상태 업데이트 (변경된 경우에만)
-    if (foundSentenceIndex !== currentSentenceIndex) {
-      setCurrentSentenceIndex(foundSentenceIndex);
-      setCurrentPhraseInSentence(foundPhraseIndex);
-    } else if (foundPhraseIndex !== currentPhraseInSentence) {
-      setCurrentPhraseInSentence(foundPhraseIndex);
-    }
+    // 항상 상태 업데이트 (React가 알아서 최적화)
+    setCurrentSentenceIndex(foundSentenceIndex);
+    setCurrentPhraseInSentence(foundPhraseIndex);
   }, [currentCharIndex, parsedScript]);
 
   // 슬라이드 자동 넘기기
@@ -530,37 +527,32 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     recognition.lang = "ko-KR";
 
     recognition.onstart = () => {
-      console.log('🎙️ 음성 인식 시작됨');
       setIsListening(true);
     };
 
     recognition.onend = () => {
-      console.log('🔴 음성 인식 종료됨, isRunning:', isRunningRef.current, 'intentionalStop:', intentionalStopRef.current);
       setIsListening(false);
       // 의도적 중지가 아니고 isRunning이 true면 자동 재시작 (브라우저가 자동으로 끊은 경우)
       if (isRunningRef.current && !intentionalStopRef.current) {
         setTimeout(() => {
           try {
             recognition.start();
-            console.log('🔄 음성 인식 재시작');
           } catch (err) {
-            console.error("Failed to restart recognition:", err);
+            // 재시작 실패 시 무시
           }
         }, 100);
       }
     };
 
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      // aborted는 정상적인 중지 시 발생하므로 로그만 남김
+      // aborted는 정상적인 중지 시 발생
       if (event.error === "aborted") {
-        console.log('ℹ️ 음성 인식 중지됨 (aborted)');
         setIsListening(false);
         return;
       }
 
       // no-speech는 조용할 때 발생 - 에러 아님
       if (event.error === "no-speech") {
-        console.log('🔇 음성 감지 안 됨 - 재시작 시도');
         // 의도적 중지가 아니고 isRunning이 true면 자동 재시작
         if (isRunningRef.current && !intentionalStopRef.current) {
           setTimeout(() => {
@@ -582,7 +574,6 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     recognition.onresult = async (event: SpeechRecognitionEvent) => {
       // 일시정지 상태에서는 이벤트 무시
       if (!isRunningRef.current) {
-        console.log('⏸️ 일시정지 상태 - 음성 무시');
         return;
       }
 
@@ -614,14 +605,14 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
       setTranscript(currentText);
 
-      // API 호출 쓰로틀링: 이미 호출 중이거나 150ms 이내면 스킵
+      // API 호출 쓰로틀링: 이미 호출 중이거나 50ms 이내면 스킵
       const now = Date.now();
-      if (pendingApiCall.current || (now - lastApiCallTime.current) < 150) {
+      if (pendingApiCall.current || (now - lastApiCallTime.current) < 50) {
         return;
       }
 
       // Final 결과일 때만 API 호출 (interim은 UI 업데이트만)
-      if (!finalTranscript.trim() && interimTranscript.length < 10) {
+      if (!finalTranscript.trim() && interimTranscript.length < 8) {
         return;
       }
 
@@ -695,10 +686,8 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       if (recognitionRef.current) {
         try {
           recognitionRef.current.start();
-          console.log('▶️ 발표 시작 - 음성 인식 활성화');
         } catch (err) {
           // 이미 시작된 경우 무시
-          console.log('ℹ️ 음성 인식이 이미 활성화되어 있음');
         }
       }
     } else {
@@ -708,7 +697,6 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop();
-          console.log('⏸️ 발표 일시정지 - 음성 인식 완전 중지');
         } catch (err) {
           // 이미 중지된 경우 무시
         }
