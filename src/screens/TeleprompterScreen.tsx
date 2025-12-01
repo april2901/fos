@@ -2,7 +2,7 @@ import { TopNavBar } from "../components/TopNavBar";
 import { Button } from "../components/ui/button";
 import { StatusPill } from "../components/StatusPill";
 import { Play, Pause, FileText, Type, Mic } from "lucide-react";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 // Web Speech API Type Definitions
 interface SpeechRecognitionEvent extends Event {
@@ -53,6 +53,165 @@ interface Sentence {
   phrases: Phrase[];
   startIndex: number;
   endIndex: number;
+}
+
+interface NormalizedScriptData {
+  text: string;
+  indexMap: number[];
+}
+
+interface LocalMatchResult {
+  matched: boolean;
+  newIndex: number;
+  confidence: number;
+  skippedRange?: { start: number; end: number } | null;
+}
+
+const NORMALIZE_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/g;
+const CHAR_CHECK_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/;
+const LOCAL_CONFIDENCE_THRESHOLD = 0.45;
+
+function normalizeTextLocal(text: string): string {
+  return text.toLowerCase().replace(NORMALIZE_REGEX, '');
+}
+
+function normalizeScriptWithIndexMapClient(scriptText: string): NormalizedScriptData {
+  const normalizedChars: string[] = [];
+  const indexMap: number[] = [];
+
+  for (let i = 0; i < scriptText.length; i++) {
+    const char = scriptText[i];
+    if (!CHAR_CHECK_REGEX.test(char)) {
+      normalizedChars.push(char.toLowerCase());
+      indexMap.push(i);
+    }
+  }
+
+  return {
+    text: normalizedChars.join(''),
+    indexMap,
+  };
+}
+
+function findOriginalIndexFromMap(indexMap: number[], normalizedIndex: number, fallbackLength: number): number {
+  if (normalizedIndex < 0) return 0;
+  if (normalizedIndex >= indexMap.length) return fallbackLength;
+  return indexMap[normalizedIndex];
+}
+
+function findNormalizedIndexByOriginal(indexMap: number[], originalIndex: number): number {
+  if (originalIndex <= 0 || indexMap.length === 0) return 0;
+
+  let left = 0;
+  let right = indexMap.length - 1;
+  let result = indexMap.length;
+
+  while (left <= right) {
+    const mid = (left + right) >> 1;
+    if (indexMap[mid] >= originalIndex) {
+      result = mid;
+      right = mid - 1;
+    } else {
+      left = mid + 1;
+    }
+  }
+
+  return result;
+}
+
+function findLongestCommonSubstringLocal(s1: string, s2: string): { start: number; length: number } {
+  if (s1.length === 0 || s2.length === 0) return { start: -1, length: 0 };
+
+  const m = s1.length;
+  const n = s2.length;
+  let prev = new Array(n + 1).fill(0);
+  let curr = new Array(n + 1).fill(0);
+
+  let maxLength = 0;
+  let endIndex = -1;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (s1[i - 1] === s2[j - 1]) {
+        curr[j] = prev[j - 1] + 1;
+        if (curr[j] > maxLength) {
+          maxLength = curr[j];
+          endIndex = j;
+        }
+      } else {
+        curr[j] = 0;
+      }
+    }
+    [prev, curr] = [curr, prev];
+    curr.fill(0);
+  }
+
+  return { start: endIndex - maxLength, length: maxLength };
+}
+
+function matchSpeechLocally(
+  spokenText: string,
+  normalizedData: NormalizedScriptData | null,
+  lastMatchedIndex: number,
+  scriptLength: number
+): LocalMatchResult | null {
+  if (!normalizedData) return null;
+
+  const normalizedSpoken = normalizeTextLocal(spokenText);
+  if (normalizedSpoken.length < 2) return null;
+
+  const currentNormalizedIndex = findNormalizedIndexByOriginal(normalizedData.indexMap, lastMatchedIndex);
+  const searchStart = Math.max(0, currentNormalizedIndex - 5);
+  const searchEnd = Math.min(normalizedData.text.length, currentNormalizedIndex + 400);
+  const searchScript = normalizedData.text.slice(searchStart, searchEnd);
+
+  let bestMatch = { index: -1, length: 0 };
+
+  const maxLen = Math.min(25, normalizedSpoken.length);
+  for (let len = maxLen; len >= 2; len--) {
+    const searchPhrase = normalizedSpoken.slice(-len);
+    const idx = searchScript.indexOf(searchPhrase);
+
+    if (idx !== -1) {
+      bestMatch = { index: searchStart + idx, length: len };
+      break;
+    }
+  }
+
+  if (bestMatch.index === -1 && normalizedSpoken.length >= 4) {
+    const spokenEnd = normalizedSpoken.slice(-20);
+    const lcsResult = findLongestCommonSubstringLocal(spokenEnd, searchScript.slice(0, 250));
+
+    if (lcsResult.length >= 3) {
+      bestMatch = {
+        index: searchStart + lcsResult.start,
+        length: lcsResult.length,
+      };
+    }
+  }
+
+  if (bestMatch.index === -1) {
+    return null;
+  }
+
+  const normalizedMatchEnd = bestMatch.index + bestMatch.length;
+  const originalIndex = findOriginalIndexFromMap(normalizedData.indexMap, normalizedMatchEnd, scriptLength);
+
+  if (originalIndex < lastMatchedIndex) {
+    return null;
+  }
+
+  const matchStartOriginal = findOriginalIndexFromMap(normalizedData.indexMap, bestMatch.index, scriptLength);
+  const skippedStart = lastMatchedIndex;
+  const skippedEnd = matchStartOriginal;
+  const hasSkipped = skippedEnd > skippedStart + 2;
+
+  return {
+    matched: true,
+    newIndex: originalIndex,
+    confidence: Math.min(1, bestMatch.length / 15),
+    skippedRange: hasSkipped ? { start: skippedStart, end: skippedEnd } : null,
+  };
 }
 
 export default function TeleprompterScreen({ presentationTitle, script, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
@@ -123,6 +282,12 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
   // Use a modifiable copy of the script so we can inject suggested reconstruction
   const fullScript = modifiedScript;
+
+  const normalizedScriptData = useMemo(() => normalizeScriptWithIndexMapClient(fullScript), [fullScript]);
+  const normalizedScriptRef = useRef<NormalizedScriptData | null>(normalizedScriptData);
+  useEffect(() => {
+    normalizedScriptRef.current = normalizedScriptData;
+  }, [normalizedScriptData]);
 
   // Keep modifiedScript in sync when prop `script` changes (new session)
   useEffect(() => {
@@ -513,6 +678,26 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
     cumulativeTranscriptRef.current = cumulativeTranscript;
   }, [cumulativeTranscript]);
 
+  const handleMatchUpdate = useCallback(
+    (newIndex: number, skippedRange?: { start: number; end: number } | null) => {
+      if (newIndex > currentCharIndexRef.current) {
+        currentCharIndexRef.current = newIndex;
+        setCurrentCharIndex(newIndex);
+      }
+
+      if (skippedRange && skippedRange.end > skippedRange.start + 1) {
+        setSkippedRanges(prev => [
+          ...prev,
+          {
+            start: Math.max(0, skippedRange.start - 1),
+            end: Math.max(0, skippedRange.end - 1),
+          },
+        ]);
+      }
+    },
+    []
+  );
+
   // Initialize Web Speech API (한 번만 초기화)
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -605,14 +790,32 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
 
       setTranscript(currentText);
 
-      // API 호출 쓰로틀링: 이미 호출 중이거나 50ms 이내면 스킵
-      const now = Date.now();
-      if (pendingApiCall.current || (now - lastApiCallTime.current) < 50) {
+      if (!finalTranscript.trim() && interimTranscript.length < 8) {
         return;
       }
 
-      // Final 결과일 때만 API 호출 (interim은 UI 업데이트만)
-      if (!finalTranscript.trim() && interimTranscript.length < 8) {
+      const localMatch = matchSpeechLocally(
+        searchText,
+        normalizedScriptRef.current,
+        currentCharIndexRef.current,
+        fullScriptRef.current.length
+      );
+
+      let shouldCallServer = true;
+      if (localMatch && localMatch.matched) {
+        handleMatchUpdate(localMatch.newIndex, localMatch.skippedRange || undefined);
+        if (localMatch.confidence >= LOCAL_CONFIDENCE_THRESHOLD) {
+          shouldCallServer = false;
+        }
+      }
+
+      if (!shouldCallServer) {
+        return;
+      }
+
+      // API 호출 쓰로틀링: 이미 호출 중이거나 50ms 이내면 스킵
+      const now = Date.now();
+      if (pendingApiCall.current || (now - lastApiCallTime.current) < 50) {
         return;
       }
 
@@ -637,14 +840,7 @@ export default function TeleprompterScreen({ presentationTitle, script, onEnd, o
           if (result && typeof result.currentMatchedIndex === 'number') {
             const newIndex = result.currentMatchedIndex;
             if (result.isCorrect && newIndex > currentCharIndexRef.current) {
-              // 스킵된 부분이 있으면 저장
-              if (result.skippedRange) {
-                setSkippedRanges(prev => [...prev, {
-                  start: result.skippedRange.start - 1,
-                  end: result.skippedRange.end - 1
-                }]); // 인덱스 보정
-              }
-              setCurrentCharIndex(newIndex);
+              handleMatchUpdate(newIndex, result.skippedRange);
             }
           }
         }

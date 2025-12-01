@@ -6,12 +6,83 @@ interface SpeechComparisonRequest {
     lastMatchedIndex: number;
 }
 
+interface NormalizedScriptData {
+    text: string;
+    indexMap: number[];
+}
+
 // 간단한 텍스트 정규화 (공백, 문장부호 제거) - 정규식 캐싱
 const NORMALIZE_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/g;
 const CHAR_CHECK_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/;
 
+const NORMALIZED_CACHE = new Map<string, NormalizedScriptData>();
+const MAX_CACHE_SIZE = 4;
+
 function normalizeText(text: string): string {
     return text.toLowerCase().replace(NORMALIZE_REGEX, '');
+}
+
+function normalizeScriptWithIndexMap(scriptText: string): NormalizedScriptData {
+    const normalizedChars: string[] = [];
+    const indexMap: number[] = [];
+
+    for (let i = 0; i < scriptText.length; i++) {
+        const char = scriptText[i];
+        if (!CHAR_CHECK_REGEX.test(char)) {
+            normalizedChars.push(char.toLowerCase());
+            indexMap.push(i);
+        }
+    }
+
+    return {
+        text: normalizedChars.join(''),
+        indexMap,
+    };
+}
+
+function getNormalizedScriptData(scriptText: string): NormalizedScriptData {
+    const cached = NORMALIZED_CACHE.get(scriptText);
+    if (cached) {
+        return cached;
+    }
+
+    const normalized = normalizeScriptWithIndexMap(scriptText);
+    NORMALIZED_CACHE.set(scriptText, normalized);
+
+    if (NORMALIZED_CACHE.size > MAX_CACHE_SIZE) {
+        const firstKey = NORMALIZED_CACHE.keys().next().value;
+        if (firstKey) {
+            NORMALIZED_CACHE.delete(firstKey);
+        }
+    }
+
+    return normalized;
+}
+
+function findOriginalIndexFromMap(indexMap: number[], normalizedIndex: number, fallbackLength: number): number {
+    if (normalizedIndex < 0) return 0;
+    if (normalizedIndex >= indexMap.length) return fallbackLength;
+    return indexMap[normalizedIndex];
+}
+
+function findNormalizedIndexByOriginal(indexMap: number[], originalIndex: number): number {
+    if (originalIndex <= 0 || indexMap.length === 0) return 0;
+
+    let left = 0;
+    let right = indexMap.length - 1;
+    let result = indexMap.length;
+
+    while (left <= right) {
+        const mid = (left + right) >> 1;
+        if (indexMap[mid] >= originalIndex) {
+            result = mid;
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+
+    return result;
 }
 
 // 두 문자열의 공통 부분문자열 찾기 (LCS 기반)
@@ -47,23 +118,6 @@ function findLongestCommonSubstring(s1: string, s2: string): { start: number; le
     return { start: endIndex - maxLength, length: maxLength };
 }
 
-// 원본 텍스트에서 정규화된 위치에 해당하는 원본 위치 찾기
-function findOriginalIndex(original: string, normalizedIndex: number): number {
-    let normalizedCount = 0;
-    const len = original.length;
-
-    for (let i = 0; i < len; i++) {
-        if (!CHAR_CHECK_REGEX.test(original[i])) {
-            if (normalizedCount >= normalizedIndex) {
-                return i;
-            }
-            normalizedCount++;
-        }
-    }
-
-    return len;
-}
-
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     // CORS handling
     res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -90,9 +144,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
-        // 정규화
+        // 정규화 (script는 인덱스 매핑 포함, spoken은 간단 변환)
         const normalizedSpoken = normalizeText(spokenText);
-        const normalizedScript = normalizeText(scriptText);
+        const { text: normalizedScript, indexMap } = getNormalizedScriptData(scriptText);
 
         if (normalizedSpoken.length < 2) {
             return res.status(200).json({
@@ -103,13 +157,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
 
         // 현재 위치의 정규화된 인덱스 계산 (간소화)
-        let currentNormalizedIndex = 0;
         const lastIdx = Math.min(lastMatchedIndex || 0, scriptText.length);
-        for (let i = 0; i < lastIdx; i++) {
-            if (!CHAR_CHECK_REGEX.test(scriptText[i])) {
-                currentNormalizedIndex++;
-            }
-        }
+        const currentNormalizedIndex = findNormalizedIndexByOriginal(indexMap, lastIdx);
 
         // 검색 범위: 현재 위치 앞 5자 ~ 뒤 400자
         const searchStart = Math.max(0, currentNormalizedIndex - 5);
@@ -146,13 +195,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (bestMatch.index !== -1) {
             const normalizedMatchEnd = bestMatch.index + bestMatch.length;
-            const originalIndex = findOriginalIndex(scriptText, normalizedMatchEnd);
+            const originalIndex = findOriginalIndexFromMap(indexMap, normalizedMatchEnd, scriptText.length);
 
             // >= 로 변경하여 문장 끝에서도 진행되도록
             if (originalIndex >= (lastMatchedIndex || 0)) {
                 // 스킵된 부분 계산 (매칭 시작 위치 - 현재 위치)
                 const matchStartNormalized = bestMatch.index;
-                const matchStartOriginal = findOriginalIndex(scriptText, matchStartNormalized);
+                const matchStartOriginal = findOriginalIndexFromMap(indexMap, matchStartNormalized, scriptText.length);
 
                 // 스킵된 구간이 있으면 반환
                 const skippedStart = lastMatchedIndex || 0;
