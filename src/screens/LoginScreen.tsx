@@ -136,7 +136,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       {/* Login Card */}
       <div className="bg-white rounded-2xl shadow-lg border border-[rgba(0,0,0,0.06)] p-10 w-[440px]">
         {/* Logo */}
-        <div className="mb-6 mt-50 flex items-center justify-center">
+        <div className="mb-6 mt-50 flex items-center justify-center mb-8 mt-2">
           <Logo size="sm" />
         </div>
         <h1 className="text-2xl font-semibold text-[#030213] mb-2 text-center">로그인</h1>
@@ -144,11 +144,11 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
           집중이 필요한 발표와 회의를 한 곳에서 관리하세요.
         </p>
         {/* 구분선 - 짧고 두껍게 */}
-        <div className="flex justify-center mb-8">
+        <div className="flex justify-center mb-12">
           <div
             style={{
               width: '96px',
-              height: '1px',
+              height: '1.5px',
               backgroundColor: '#9CA3AF'
             }}
           />
@@ -180,7 +180,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             variant="outline"
             onClick={handleKakaoLogin}
             disabled={isKakaoLoading}
-            className="w-full h-12 rounded-full gap-2 !bg-[#FEE500] !text-black hover:!bg-[#F5D800]"
+            className="w-full h-12 rounded-full gap-2 !bg-[#FEE500] !text-black hover:!bg-[#F5D800] mb-2"
           >
             {isKakaoLoading ? (
               <>
