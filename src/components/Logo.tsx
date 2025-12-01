@@ -8,7 +8,7 @@ type LogoProps = {
 export function Logo({ size = "md" }: LogoProps) {
   // px 단위로 직접 컨트롤
   const heightPx =
-    size === "sm" ? 40
+    size === "sm" ? 60
     : size === "lg" ? 80
     : 70;           
 

@@ -6,6 +6,8 @@ import { Logo } from "../components/Logo";
 import { Eye, EyeOff, Building2, Loader2, AlertCircle, Info } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
+import googleLogo from "../assets/google_Logo.png";
+import kakaoLogo from "../assets/kakao_Logo.png";
 
 interface LoginScreenProps {
   onLogin: () => void;
@@ -108,27 +110,35 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   return (
     <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white flex flex-col items-center justify-center pt-6">
-      {/* Logo */}
-      <div className="mb-6 mt-50">
-        <Logo size="md" />
-      </div>
 
       {/* Login Card */}
       <div className="bg-white rounded-2xl shadow-lg border border-[rgba(0,0,0,0.06)] p-10 w-[440px]">
+        {/* Logo */}
+        <div className="mb-6 mt-50 flex items-center justify-center">
+          <Logo size="sm" />
+        </div>
         <h1 className="text-2xl font-semibold text-[#030213] mb-2 text-center">로그인</h1>
-        <p className="text-[#717182] mb-8 text-sm text-center">
+        <p className="text-[#717182] mb-6 text-sm text-center">
           집중이 필요한 발표와 회의를 한 곳에서 관리하세요.
         </p>
-
-        <div className="space-y-6">
-
+        {/* 구분선 - 짧고 두껍게 */}
+        <div className="flex justify-center mb-8">
+          <div 
+            style={{ 
+              width: '96px', 
+              height: '1px', 
+              backgroundColor: '#9CA3AF' 
+            }}
+          />
+        </div>
           {/* Organization Login */}
-          <div className="pt-4 border-t border-[rgba(0,0,0,0.08)]">
+          <div>
+            {/* Google 버튼 - 둥글게 */}
             <Button
               variant="outline"
               onClick={handleGoogleLogin}
               disabled={isGoogleLoading}
-              className="w-full h-11 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-lg gap-2"
+              className="w-full h-12 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-full gap-2"
             >
               {isGoogleLoading ? (
                 <>
@@ -137,17 +147,26 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                 </>
               ) : (
                 <>
-                  <Building2 className="size-6" />
-                  Google 계정으로 회원 가입 및 로그인
+                  <img src={googleLogo} alt="Google" className="w-6 h-6" />
+                  구글 계정으로 계속하기
                 </>
               )}
             </Button>
-            <p className="text-xs text-[#717182] text-center mt-2">
-              Google Workspace 계정으로 간편하게 로그인하세요
-            </p>
+            
+            {/* Kakao 버튼 추가 */}
+            <Button
+              onClick={() => {/* handleKakaoLogin */}}
+              style={{ 
+                backgroundColor: '#FEE500',
+                color: '#000000'
+              }}
+              className="w-full h-12 rounded-full gap-2 mt-3 border-0 hover:brightness-95"
+            >
+              <img src={kakaoLogo} alt="Kakao" className="w-6 h-6" />
+              카카오톡 계정으로 계속하기
+            </Button>
           </div>
         </div>
       </div>
-    </div>
   );
 }
