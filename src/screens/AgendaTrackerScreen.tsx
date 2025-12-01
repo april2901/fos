@@ -2,14 +2,7 @@ import { TopNavBar } from "../components/TopNavBar";
 import { Button } from "../components/ui/button";
 import { StatusPill } from "../components/StatusPill";
 import { AgendaTag } from "../components/AgendaTag";
-import {
-  Plus,
-  Info,
-  X,
-  Trash2,
-  GripVertical,
-  Check,
-} from "lucide-react";
+import { Plus, Info, X, Trash2, GripVertical, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { AgendaItem, AgendaMapData } from "../App";
 import { DataSet, Network } from "vis-network/standalone";
@@ -122,13 +115,12 @@ export default function AgendaTrackerScreen({
     y: number;
   } | null>(null);
 
-  // STT 관련 상태
   const [isRecording, setIsRecording] = useState(false);
   const [currentTranscript, setCurrentTranscript] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const recognitionRef = useRef<any>(null);
   const transcriptBufferRef = useRef("");
-  const finalCountRef = useRef(0); // final 결과 횟수 카운트
+  const finalCountRef = useRef(0);
   const lastAnalysisTimeRef = useRef(0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -210,9 +202,11 @@ export default function AgendaTrackerScreen({
     null
   );
 
-  const sttEntryRefs = useRef<
-    Record<string, HTMLDivElement | null>
-  >({});
+  const sttEntryRefs = useRef<Record<string, HTMLDivElement | null>>(
+    {}
+  );
+  const sttLogContainerRef = useRef<HTMLDivElement | null>(null);
+  const sttEntriesRef = useRef<STTEntry[]>([]);
 
   const [sttEntries, setSTTEntries] = useState<STTEntry[]>([
     {
@@ -245,6 +239,11 @@ export default function AgendaTrackerScreen({
     },
   ]);
 
+  // 최신 STT 엔트리 목록을 ref에 동기화
+  useEffect(() => {
+    sttEntriesRef.current = sttEntries;
+  }, [sttEntries]);
+
   const syncMapDataToParent = () => {
     const allNodes = nodes.get();
     const allEdges = edges.get();
@@ -269,59 +268,66 @@ export default function AgendaTrackerScreen({
     });
   };
 
-  // 기존 노드들의 주제 목록 가져오기
   const getExistingTopics = (): string[] => {
     return Object.values(nodeMetadata).map((meta) => meta.label);
   };
 
-  // LLM API를 호출하여 회의 내용 분석
   const analyzeMeetingContent = async (transcript: string) => {
-    console.log('[DEBUG] analyzeMeetingContent called with:', transcript.substring(0, 50));
-    
+    console.log(
+      "[DEBUG] analyzeMeetingContent called with:",
+      transcript.substring(0, 50)
+    );
+
     if (isAnalyzing || transcript.length < 10) {
-      console.log('[DEBUG] Skipped: isAnalyzing=', isAnalyzing, 'length=', transcript.length);
+      console.log(
+        "[DEBUG] Skipped: isAnalyzing=",
+        isAnalyzing,
+        "length=",
+        transcript.length
+      );
       return;
     }
-    
+
     const now = Date.now();
-    // 최소 5초 간격으로 분석
     if (now - lastAnalysisTimeRef.current < 5000) {
-      console.log('[DEBUG] Skipped: too soon, wait', 5000 - (now - lastAnalysisTimeRef.current), 'ms');
+      console.log(
+        "[DEBUG] Skipped: too soon, wait",
+        5000 - (now - lastAnalysisTimeRef.current),
+        "ms"
+      );
       return;
     }
-    
+
     setIsAnalyzing(true);
     lastAnalysisTimeRef.current = now;
-    console.log('[DEBUG] Starting API call...');
+    console.log("[DEBUG] Starting API call...");
 
     try {
-      const response = await fetch('/api/analyze-meeting', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/analyze-meeting", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           transcript,
           existingTopics: getExistingTopics(),
         }),
       });
 
-      console.log('[DEBUG] API response status:', response.status);
-      
+      console.log("[DEBUG] API response status:", response.status);
+
       if (response.ok) {
         const result = await response.json();
-        console.log('[DEBUG] API result:', result);
-        
-        // 새 노드 생성
+        console.log("[DEBUG] API result:", result);
+
         createNodeFromAnalysis(result, transcript);
-        console.log('[DEBUG] Node created!');
-        
-        // 버퍼 초기화
+        console.log("[DEBUG] Node created!");
+
         transcriptBufferRef.current = "";
       } else {
         const errorText = await response.text();
-        console.error('[DEBUG] API error response:', errorText);
+        console.error("[DEBUG] API error response:", errorText);
       }
     } catch (error) {
-      console.error('Meeting analysis error:', error);
+      console.error("Meeting analysis error:", error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -338,18 +344,21 @@ export default function AgendaTrackerScreen({
     },
     transcript: string
   ) => {
-    // 현재 존재하는 노드들의 최대 ID를 확인하여 중복 방지
     const existingIds = nodes.getIds() as number[];
-    const maxExistingId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    const maxExistingId =
+      existingIds.length > 0 ? Math.max(...existingIds) : 0;
     if (nodeCounterRef.current <= maxExistingId) {
       nodeCounterRef.current = maxExistingId;
     }
     const newNodeId = ++nodeCounterRef.current;
     const color = CATEGORY_COLORS[result.category];
-    
-    // 부모 노드 결정: 관련 주제가 있으면 해당 노드, 없으면 루트(1) 또는 선택된 노드
+
+    // 부모 노드 결정
     let parentId = 1;
-    if (result.relatedTopicIndex !== undefined && result.relatedTopicIndex !== null) {
+    if (
+      result.relatedTopicIndex !== undefined &&
+      result.relatedTopicIndex !== null
+    ) {
       const existingNodes = Object.keys(nodeMetadata).map(Number);
       if (existingNodes[result.relatedTopicIndex]) {
         parentId = existingNodes[result.relatedTopicIndex];
@@ -359,14 +368,15 @@ export default function AgendaTrackerScreen({
     }
 
     const parentNode = nodes.get(parentId);
-    const parentLevel = parentNode?.level !== undefined ? parentNode.level : 0;
+    const parentLevel =
+      parentNode?.level !== undefined ? parentNode.level : 0;
 
-    // 노드 추가
     nodes.add({
       id: newNodeId,
-      label: result.keyword.length > 15 
-        ? result.keyword.substring(0, 12) + '...' 
-        : result.keyword,
+      label:
+        result.keyword.length > 15
+          ? result.keyword.substring(0, 12) + "..."
+          : result.keyword,
       level: parentLevel + 1,
       fixed: { x: true, y: false },
       color: {
@@ -379,7 +389,6 @@ export default function AgendaTrackerScreen({
       },
     });
 
-    // 엣지 추가
     edges.add({ from: parentId, to: newNodeId });
 
     const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
@@ -388,7 +397,6 @@ export default function AgendaTrackerScreen({
       hour12: false,
     });
 
-    // 메타데이터 업데이트
     setNodeMetadata((prev) => ({
       ...prev,
       [newNodeId]: {
@@ -401,29 +409,29 @@ export default function AgendaTrackerScreen({
       },
     }));
 
-    // STT 엔트리 추가
-    const newEntryId = `s${Date.now()}`;
-    setSTTEntries((prev) => [
-      ...prev,
-      {
-        id: newEntryId,
-        text: transcript,
-        type: result.category,
-        timestamp: newTimestamp,
-        nodeId: newNodeId,
-      },
-    ]);
+    // 이번 분석에 사용된 발화(아직 nodeId가 없는 로그) 전체를 새 노드에 연결
+    setSTTEntries((prev) =>
+      prev.map((entry) =>
+        entry.nodeId == null
+          ? {
+              ...entry,
+              type: result.category,
+              nodeId: newNodeId,
+            }
+          : entry
+      )
+    );
 
-    // 새 노드 선택
     selectedNodeRef.current = newNodeId;
     networkRef.current?.selectNodes([newNodeId]);
 
     setTimeout(() => syncMapDataToParent(), 100);
   };
 
-  // STT 초기화 및 시작/중지
   const initializeSpeechRecognition = () => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       console.warn("Web Speech API not supported");
       return null;
@@ -447,40 +455,58 @@ export default function AgendaTrackerScreen({
         }
       }
 
-      // 현재 인식 중인 텍스트 표시
       setCurrentTranscript(interimTranscript || finalTranscript);
 
-      // Final 결과가 있으면 버퍼에 추가
       if (finalTranscript.trim()) {
-        transcriptBufferRef.current += finalTranscript;
+        const finalText = finalTranscript.trim();
+
+        const newTimestamp = new Date().toLocaleTimeString("ko-KR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+        const newEntryId = `s${Date.now()}`;
+
+        setSTTEntries((prev) => [
+          ...prev,
+          {
+            id: newEntryId,
+            text: finalText,
+            type: "General",
+            timestamp: newTimestamp,
+          },
+        ]);
+
+        transcriptBufferRef.current += finalText + " ";
         finalCountRef.current += 1;
-        
-        console.log('[DEBUG] Final result added, count:', finalCountRef.current, 'buffer:', transcriptBufferRef.current.substring(0, 50));
-        
-        // 3번의 final 결과가 쌓이면 분석 (또는 버퍼가 100자 이상)
+
+        console.log(
+          "[DEBUG] Final result added, count:",
+          finalCountRef.current,
+          "buffer:",
+          transcriptBufferRef.current.substring(0, 50)
+        );
+
         const buffer = transcriptBufferRef.current;
         if (finalCountRef.current >= 3 || buffer.length >= 100) {
-          console.log('[DEBUG] Triggering analysis...');
+          console.log("[DEBUG] Triggering analysis...");
           analyzeMeetingContent(buffer.trim());
-          finalCountRef.current = 0; // 카운트 리셋
+          finalCountRef.current = 0;
         }
       }
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error !== 'aborted' && event.error !== 'no-speech') {
+      if (event.error !== "aborted" && event.error !== "no-speech") {
         console.error("Speech recognition error:", event.error);
       }
     };
 
     recognition.onend = () => {
-      // 녹음 중이면 자동 재시작
       if (isRecording) {
         try {
           recognition.start();
-        } catch (e) {
-          // 이미 시작된 경우 무시
-        }
+        } catch (e) {}
       }
     };
 
@@ -489,19 +515,16 @@ export default function AgendaTrackerScreen({
 
   const toggleRecording = () => {
     if (isRecording) {
-      // 녹음 중지
       if (recognitionRef.current) {
         recognitionRef.current.stop();
       }
       setIsRecording(false);
       setCurrentTranscript("");
-      
-      // 남은 버퍼 분석
+
       if (transcriptBufferRef.current.length >= 10) {
         analyzeMeetingContent(transcriptBufferRef.current.trim());
       }
     } else {
-      // 녹음 시작
       if (!recognitionRef.current) {
         recognitionRef.current = initializeSpeechRecognition();
       }
@@ -517,7 +540,6 @@ export default function AgendaTrackerScreen({
     }
   };
 
-  // 컴포넌트 언마운트 시 STT 정리
   useEffect(() => {
     return () => {
       if (recognitionRef.current) {
@@ -688,7 +710,6 @@ export default function AgendaTrackerScreen({
       selectedNodeRef.current = nodeId;
       setSelectedNodeId(nodeId);
 
-
       if (networkRef.current && containerRef.current) {
         const positions = networkRef.current.getPositions([nodeId]);
         const canvasPos =
@@ -702,7 +723,7 @@ export default function AgendaTrackerScreen({
         });
       }
 
-      const matchingEntry = sttEntries.find(
+      const matchingEntry = sttEntriesRef.current.find(
         (entry) => entry.nodeId === nodeId
       );
       if (matchingEntry && sttEntryRefs.current[matchingEntry.id]) {
@@ -743,6 +764,14 @@ export default function AgendaTrackerScreen({
       syncMapDataToParent();
     }
   }, [nodeMetadata]);
+
+  // 새 로그가 추가될 때마다 스크롤을 가장 아래로
+  useEffect(() => {
+    if (sttLogContainerRef.current) {
+      const el = sttLogContainerRef.current;
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [sttEntries]);
 
   const handleCreateNode = () => {
     if (!newNodeText.trim()) return;
@@ -933,16 +962,17 @@ export default function AgendaTrackerScreen({
         <div className="flex-[2.5] flex flex-col h-full">
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] flex flex-col h-full overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-[rgba(0,0,0,0.06)] shrink-0">
-              <h3 className="text-base font-semibold text-[#030213]">실시간 논점 지도</h3>
+              <h3 className="text-base font-semibold text-[#030213]">
+                실시간 논점 지도
+              </h3>
 
               <div className="flex items-center gap-3">
-                {/* 녹음 상태 표시 및 버튼 */}
                 <Button
                   onClick={toggleRecording}
                   variant={isRecording ? "destructive" : "outline"}
                   className={`h-9 px-4 rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
-                    isRecording 
-                      ? "bg-red-500 hover:bg-red-600 text-white" 
+                    isRecording
+                      ? "bg-red-500 hover:bg-red-600 text-white"
                       : "border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF]"
                   }`}
                 >
@@ -955,9 +985,13 @@ export default function AgendaTrackerScreen({
                     "🎙️ 녹음 시작"
                   )}
                 </Button>
-                {isRecording && <StatusPill text="REC" variant="recording" />}
+                {isRecording && (
+                  <StatusPill text="REC" variant="recording" />
+                )}
                 {isAnalyzing && (
-                  <span className="text-xs text-blue-500 animate-pulse">분석 중...</span>
+                  <span className="text-xs text-blue-500 animate-pulse">
+                    분석 중...
+                  </span>
                 )}
                 <Button
                   onClick={onEnd}
@@ -968,16 +1002,6 @@ export default function AgendaTrackerScreen({
                 </Button>
               </div>
             </div>
-
-            {/* 현재 인식 중인 텍스트 표시 */}
-            {isRecording && currentTranscript && (
-              <div className="px-6 py-2 bg-blue-50 border-b border-blue-100">
-                <p className="text-sm text-blue-700">
-                  <span className="font-medium">인식 중: </span>
-                  {currentTranscript}
-                </p>
-              </div>
-            )}
 
             <div
               className="flex-grow p-8 bg-gradient-to-br from-[#FAFBFC] to-white relative overflow-hidden"
@@ -993,82 +1017,100 @@ export default function AgendaTrackerScreen({
                 ref={containerRef}
                 className="w-full h-full"
                 style={{
-                  backgroundImage: "radial-gradient(circle, #e5e5e5 1px, transparent 1px)",
+                  backgroundImage:
+                    "radial-gradient(circle, #e5e5e5 1px, transparent 1px)",
                   backgroundSize: "20px 20px",
                 }}
               />
 
-
-              {/* 팝오버 등 기존 로직 유지 */}
-              {selectedNodeId && popoverPosition && nodeMetadata[selectedNodeId] && (
-                <div
-                  className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
-                  style={{
-                    left: `${popoverPosition.x}px`,
-                    top: `${popoverPosition.y}px`,
-                  }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-grow pr-2">
-                      <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
-                        {nodeMetadata[selectedNodeId].label}
-                      </h4>
-                      <p className="text-xs text-[#717182]">
-                        {nodeMetadata[selectedNodeId].timestamp}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setSelectedNodeId(null);
-                        setPopoverPosition(null);
-                        networkRef.current?.unselectAll();
-                      }}
-                      className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
-                    >
-                      <X className="size-4" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">유형</p>
-                      <AgendaTag type={nodeMetadata[selectedNodeId].category} />
+              {selectedNodeId &&
+                popoverPosition &&
+                nodeMetadata[selectedNodeId] && (
+                  <div
+                    className="absolute bg-white rounded-xl shadow-2xl border border-[rgba(0,0,0,0.12)] p-4 w-[320px] max-h-[350px] overflow-y-auto z-50"
+                    style={{
+                      left: `${popoverPosition.x}px`,
+                      top: `${popoverPosition.y}px`,
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-grow pr-2">
+                        <h4 className="text-sm font-semibold text-[#030213] mb-1 leading-tight">
+                          {nodeMetadata[selectedNodeId].label}
+                        </h4>
+                        <p className="text-xs text-[#717182]">
+                          {nodeMetadata[selectedNodeId].timestamp}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSelectedNodeId(null);
+                          setPopoverPosition(null);
+                          networkRef.current?.unselectAll();
+                        }}
+                        className="text-[#717182] hover:text-[#030213] hover:bg-gray-100 p-1 rounded transition-colors shrink-0"
+                      >
+                        <X className="size-4" />
+                      </button>
                     </div>
 
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">요약</p>
-                      <p className="text-xs text-[#030213] leading-relaxed bg-[#F4F6FF] p-2.5 rounded-lg">
-                        {nodeMetadata[selectedNodeId].summary}
-                      </p>
-                    </div>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">
+                          유형
+                        </p>
+                        <AgendaTag
+                          type={nodeMetadata[selectedNodeId].category}
+                        />
+                      </div>
 
-                    <div>
-                      <p className="text-xs text-[#717182] font-medium mb-1.5">발화 전문</p>
-                      <div className="text-xs text-[#030213] leading-relaxed bg-[#FAFBFC] p-2.5 rounded-lg border border-[rgba(0,0,0,0.06)] max-h-32 overflow-y-auto">
-                        {nodeMetadata[selectedNodeId].transcript}
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">
+                          요약
+                        </p>
+                        <p className="text-xs text-[#030213] leading-relaxed bg-[#F4F6FF] p-2.5 rounded-lg">
+                          {nodeMetadata[selectedNodeId].summary}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#717182] font-medium mb-1.5">
+                          발화 전문
+                        </p>
+                        <div className="text-xs text-[#030213] leading-relaxed bg-[#FAFBFC] p-2.5 rounded-lg border border-[rgba(0,0,0,0.06)] max-h-32 overflow-y-auto">
+                          {nodeMetadata[selectedNodeId].transcript}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
             </div>
 
             <div className="border-t border-[rgba(0,0,0,0.06)] p-5 bg-white shrink-0">
-              <p className="text-xs text-[#717182] mb-3 font-medium">실시간 STT 로그</p>
+              <p className="text-xs text-[#717182] mb-3 font-medium">
+                실시간 STT 로그
+              </p>
 
-              <div className="bg-[#FAFBFC] rounded-lg p-3 mb-3 max-h-20 overflow-y-auto space-y-2 text-sm border border-[rgba(0,0,0,0.06)]">
+              <div
+                ref={sttLogContainerRef}
+                className="bg-[#FAFBFC] rounded-lg p-3 mb-3 max-h-20 overflow-y-auto space-y-2 text-sm border border-[rgba(0,0,0,0.06)]"
+              >
                 {sttEntries.map((entry) => (
                   <div
                     key={entry.id}
-
-                    ref={(el) => { sttEntryRefs.current[entry.id] = el; }}
-                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
+                    ref={(el) => {
+                      sttEntryRefs.current[entry.id] = el;
+                    }}
+                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${
+                      selectedNodeId === entry.nodeId
                         ? "bg-blue-100 border-blue-300"
                         : "border-transparent"
-                      }`}
+                    }`}
                   >
-                    <span className="text-[#717182] text-xs mr-2">{entry.timestamp}</span>
+                    <span className="text-[#717182] text-xs mr-2">
+                      {entry.timestamp}
+                    </span>
                     {entry.text}
                     <span className="ml-2">
                       <AgendaTag type={entry.type} />
@@ -1088,15 +1130,17 @@ export default function AgendaTrackerScreen({
                     className="flex-grow bg-transparent outline-none text-sm"
                   />
                   <div className="flex gap-1.5">
-
-                    {(["리서치", "아이디어", "개발", "디자인", "일반"] as const).map((type) => (
+                    {(
+                      ["리서치", "아이디어", "개발", "디자인", "일반"] as const
+                    ).map((type) => (
                       <button
                         key={type}
                         onClick={() => setSelectedNodeType(type)}
-                        className={`transition-all ${selectedNodeType === type
+                        className={`transition-all ${
+                          selectedNodeType === type
                             ? categoryStyles[type] + " border"
                             : "opacity-50 hover:opacity-100"
-                          }`}
+                        }`}
                       >
                         <AgendaTag type={type} asButton={false} />
                       </button>
@@ -1118,40 +1162,57 @@ export default function AgendaTrackerScreen({
         {/* Right - Important Items Dashboard */}
         <div className="flex-1 h-full">
           <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6 h-full flex flex-col overflow-y-auto">
-            <h3 className="text-base font-semibold text-[#030213] mb-6">실시간 중요 사항</h3>
+            <h3 className="text-base font-semibold text-[#030213] mb-6">
+              실시간 중요 사항
+            </h3>
 
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <div className="size-1.5 rounded-full bg-purple-500" />
-                <p className="text-sm font-semibold text-[#030213]">Decision</p>
+                <p className="text-sm font-semibold text-[#030213]">
+                  Decision
+                </p>
               </div>
               <div className="space-y-2">
                 {decisions.map((item) => (
                   <div
                     key={item.id}
                     draggable
-                    onDragStart={(e) => handleItemDragStart(e, item.id, "decision")}
+                    onDragStart={(e) =>
+                      handleItemDragStart(e, item.id, "decision")
+                    }
                     onDragOver={(e) => handleItemDragOver(e, item.id)}
-                    onDrop={(e) => handleItemDrop(e, item.id, "decision")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                      ? "border-[#0064FF] shadow-lg"
-                      : "border-[rgba(0,0,0,0.1)]"
-                      } hover:shadow-md hover:border-[#0064FF]`}
+                    onDrop={(e) =>
+                      handleItemDrop(e, item.id, "decision")
+                    }
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
+                      dragOverItem === item.id
+                        ? "border-[#0064FF] shadow-lg"
+                        : "border-[rgba(0,0,0,0.1)]"
+                    } hover:shadow-md hover:border-[#0064FF]`}
                   >
-
-                    {editingItem?.id === item.id && editingItem?.type === "decision" ? (
+                    {editingItem?.id === item.id &&
+                    editingItem?.type === "decision" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
+                          onChange={(e) =>
+                            setEditText(e.target.value)
+                          }
                           className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
                           autoFocus
                         />
-                        <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                        <button
+                          onClick={saveEdit}
+                          className="text-green-600 hover:bg-green-50 p-1 rounded"
+                        >
                           <Check className="size-4" />
                         </button>
-                        <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
+                        <button
+                          onClick={cancelEdit}
+                          className="text-red-600 hover:bg-red-50 p-1 rounded"
+                        >
                           <X className="size-4" />
                         </button>
                       </div>
@@ -1159,13 +1220,17 @@ export default function AgendaTrackerScreen({
                       <div className="flex items-center gap-2">
                         <GripVertical className="size-4 text-[#717182] shrink-0" />
                         <p
-                          onClick={() => startEdit(item.id, "decision", item.text)}
+                          onClick={() =>
+                            startEdit(item.id, "decision", item.text)
+                          }
                           className="flex-grow text-sm text-[#030213] cursor-pointer"
                         >
                           {item.text}
                         </p>
                         <button
-                          onClick={() => deleteItem(item.id, "decision")}
+                          onClick={() =>
+                            deleteItem(item.id, "decision")
+                          }
                           className="text-red-500 hover:bg-red-50 p-1 rounded"
                         >
                           <Trash2 className="size-4" />
@@ -1180,35 +1245,50 @@ export default function AgendaTrackerScreen({
             <div className="mb-6">
               <div className="flex items-center gap-2 mb-3">
                 <div className="size-1.5 rounded-full bg-blue-500" />
-                <p className="text-sm font-semibold text-[#030213]">Action Item</p>
+                <p className="text-sm font-semibold text-[#030213]">
+                  Action Item
+                </p>
               </div>
               <div className="space-y-2">
                 {actionItems.map((item) => (
                   <div
                     key={item.id}
                     draggable
-                    onDragStart={(e) => handleItemDragStart(e, item.id, "action")}
+                    onDragStart={(e) =>
+                      handleItemDragStart(e, item.id, "action")
+                    }
                     onDragOver={(e) => handleItemDragOver(e, item.id)}
-                    onDrop={(e) => handleItemDrop(e, item.id, "action")}
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                      ? "border-[#0064FF] shadow-lg"
-                      : "border-[rgba(0,0,0,0.1)]"
-                      } hover:shadow-md hover:border-[#0064FF]`}
+                    onDrop={(e) =>
+                      handleItemDrop(e, item.id, "action")
+                    }
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
+                      dragOverItem === item.id
+                        ? "border-[#0064FF] shadow-lg"
+                        : "border-[rgba(0,0,0,0.1)]"
+                    } hover:shadow-md hover:border-[#0064FF]`}
                   >
-
-                    {editingItem?.id === item.id && editingItem?.type === "action" ? (
+                    {editingItem?.id === item.id &&
+                    editingItem?.type === "action" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
                           value={editText}
-                          onChange={(e) => setEditText(e.target.value)}
+                          onChange={(e) =>
+                            setEditText(e.target.value)
+                          }
                           className="flex-grow text-sm text-[#030213] border-b border-[#0064FF] outline-none"
                           autoFocus
                         />
-                        <button onClick={saveEdit} className="text-green-600 hover:bg-green-50 p-1 rounded">
+                        <button
+                          onClick={saveEdit}
+                          className="text-green-600 hover:bg-green-50 p-1 rounded"
+                        >
                           <Check className="size-4" />
                         </button>
-                        <button onClick={cancelEdit} className="text-red-600 hover:bg-red-50 p-1 rounded">
+                        <button
+                          onClick={cancelEdit}
+                          className="text-red-600 hover:bg-red-50 p-1 rounded"
+                        >
                           <X className="size-4" />
                         </button>
                       </div>
@@ -1216,13 +1296,17 @@ export default function AgendaTrackerScreen({
                       <div className="flex items-center gap-2">
                         <GripVertical className="size-4 text-[#717182] shrink-0" />
                         <p
-                          onClick={() => startEdit(item.id, "action", item.text)}
+                          onClick={() =>
+                            startEdit(item.id, "action", item.text)
+                          }
                           className="flex-grow text-sm text-[#030213] cursor-pointer"
                         >
                           {item.text}
                         </p>
                         <button
-                          onClick={() => deleteItem(item.id, "action")}
+                          onClick={() =>
+                            deleteItem(item.id, "action")
+                          }
                           className="text-red-500 hover:bg-red-50 p-1 rounded"
                         >
                           <Trash2 className="size-4" />
@@ -1238,7 +1322,8 @@ export default function AgendaTrackerScreen({
               <div className="flex items-start gap-2 text-xs text-[#717182] bg-[#F4F6FF] p-3 rounded-lg">
                 <Info className="size-4 shrink-0 mt-0.5 text-[#0064FF]" />
                 <p className="leading-relaxed">
-                  카드를 클릭하여 우선순위 변경 또는 수정/삭제를 할 수 있습니다.
+                  카드를 클릭하여 우선순위 변경 또는 수정/삭제를 할 수
+                  있습니다.
                 </p>
               </div>
             </div>

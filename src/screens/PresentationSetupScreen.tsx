@@ -4,7 +4,8 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Upload, Info, AlertTriangle } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient";
 
 interface PresentationSetupScreenProps {
   onComplete: (title: string, script: string) => void;
@@ -17,11 +18,57 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   const [script, setScript] = useState("");
   const [targetTime, setTargetTime] = useState("");
   const [showTimeTooltip, setShowTimeTooltip] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 컬포넌트 마운트 시 최근 스크립트 불러오기
+  useEffect(() => {
+    const fetchLatestScript = async () => {
+      try {
+        const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          console.log('로그인하지 않음');
+          setIsLoading(false);
+          return;
+        }
+
+        // 가장 최근 저장된 세션 가져오기
+        const { data, error } = await supabase
+          .schema('fos')
+          .from('sessions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (error) {
+          console.log('저장된 스크립트 없음:', error);
+          setIsLoading(false);
+          return;
+        }
+
+        if (data) {
+          console.log('불러온 스크립트:', data);
+          setPresentationTitle(data.title || '');
+          setScript(data.script_content || '');
+        }
+
+        setIsLoading(false);
+      } catch (err) {
+        console.error('스크립트 불러오기 오류:', err);
+        setIsLoading(false);
+      }
+    };
+
+    fetchLatestScript();
+  }, []);
 
   // Calculate character units for mixed-language script
   const { totalUnits, estimatedSeconds } = useMemo(() => {
     let units = 0;
-    
+
     for (const char of script) {
       // Hangul syllables: 1.0 unit
       if (/[\u3131-\u314e\u314f-\u3163\uac00-\ud7a3]/.test(char)) {
@@ -33,7 +80,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
       }
       // Whitespace and line breaks: 0 (ignored)
     }
-    
+
     const seconds = Math.floor(units / 5);
     return { totalUnits: units, estimatedSeconds: seconds };
   }, [script]);
@@ -41,7 +88,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   // Format seconds to MM:SS or HH:MM:SS
   const formatTime = (totalSeconds: number): string => {
     if (totalSeconds === 0) return "0초";
-    
+
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;
@@ -58,9 +105,9 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   // Parse target time input (handles MM:SS or HH:MM:SS format)
   const parseTargetTime = (input: string): number => {
     if (!input) return 0;
-    
+
     const parts = input.split(':').map(p => parseInt(p) || 0);
-    
+
     if (parts.length === 2) {
       // MM:SS
       return parts[0] * 60 + parts[1];
@@ -68,14 +115,14 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
       // HH:MM:SS
       return parts[0] * 3600 + parts[1] * 60 + parts[2];
     }
-    
+
     return 0;
   };
 
   // Format input as user types (auto-insert colons)
   const handleTargetTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value.replace(/[^0-9]/g, ''); // Remove non-digits
-    
+
     if (value.length === 0) {
       setTargetTime('');
       return;
@@ -109,7 +156,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   // Calculate difference between estimated and target
   const targetSeconds = parseTargetTime(targetTime);
   const timeDifference = estimatedSeconds - targetSeconds;
-  
+
   // Convert time difference to equivalent Hangul character units
   // Since 5 units = 1 second, difference in seconds * 5 = difference in units
   const unitDifference = timeDifference * 5;
@@ -117,7 +164,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   const charEquivalent = Math.round(Math.abs(unitDifference));
 
   const needsAdjustment = targetTime && Math.abs(timeDifference) > 30; // More than 30 seconds difference
-  
+
   // Check if target time is significantly shorter (more than 70% shorter or 2+ minutes shorter)
   const isTooShort = targetTime && targetSeconds > 0 && (
     timeDifference > 120 || // More than 2 minutes shorter
@@ -128,7 +175,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
     if (!targetTime) {
       return "발표 시간은 한글 5글자(또는 영문·숫자·기호 10자)를 1초로 환산해 계산합니다.";
     }
-    
+
     if (unitDifference > 0) {
       return `발표 시간은 한글 5글자(또는 영문·숫자·기호 10자)를 1초로 환산해 계산합니다.\n현재 스크립트는 목표 시간보다 약 ${charEquivalent}글자 분량만큼 깁니다.`;
     } else if (unitDifference < 0) {
@@ -140,15 +187,86 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
   const isFormValid = presentationTitle.trim().length > 0 && script.trim().length > 0;
 
+  // 스크립트를 DB에 저장하고 다음 화면으로 이동
+  const handleComplete = async () => {
+    if (!isFormValid || isSaving) return;
+
+    setIsSaving(true);
+
+    try {
+      // 현재 로그인한 사용자 정보 가져오기
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.error('사용자 인증 오류:', userError);
+        alert('로그인이 필요합니다.');
+        setIsSaving(false);
+        return;
+      }
+
+      // 기존 세션이 있는지 확인
+      const { data: existingSession, error: fetchError } = await supabase
+        .schema('fos')
+        .from('sessions')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      let error;
+
+      if (existingSession) {
+        // 기존 세션 UPDATE
+        const { error: updateError } = await supabase
+          .schema('fos')
+          .from('sessions')
+          .update({
+            script_content: script,
+            title: presentationTitle,
+          })
+          .eq('id', existingSession.id);
+
+        error = updateError;
+        console.log('스크립트 업데이트 성공');
+      } else {
+        // 새 세션 INSERT
+        const { error: insertError } = await supabase
+          .schema('fos')
+          .from('sessions')
+          .insert({
+            user_id: user.id,
+            script_content: script,
+            title: presentationTitle,
+          });
+
+        error = insertError;
+        console.log('스크립트 생성 성공');
+      }
+
+      if (error) {
+        console.error('스크립트 저장 실패:', error);
+        alert('스크립트 저장에 실패했습니다.');
+        setIsSaving(false);
+        return;
+      }
+
+      // 저장 성공 후 다음 화면으로
+      onComplete(presentationTitle, script);
+    } catch (err) {
+      console.error('예외 발생:', err);
+      alert('오류가 발생했습니다.');
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="w-full min-h-screen bg-[#FAFBFC] flex flex-col">
       <TopNavBar title="발표 준비" onHomeClick={onHomeClick} showBackButton={true} onBackClick={onBack} />
-      
+
       <div className="px-8 py-8 pb-10 overflow-y-auto flex-1">
         {/* Title Input */}
         <div className="mb-6 max-w-7xl mx-auto">
           <Label className="text-sm font-medium mb-2 block text-[#030213]">발표 제목</Label>
-          <Input 
+          <Input
             placeholder="예: LG전자 미래사업전략 보고 회의안 발표"
             value={presentationTitle}
             onChange={(e) => setPresentationTitle(e.target.value)}
@@ -156,7 +274,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
           />
         </div>
 
-        <div 
+        <div
           className="flex gap-6 max-w-7xl mx-auto"
           style={{ height: "950px" }}
         >
@@ -168,19 +286,19 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                   {script.length > 0 ? `${script.length}자` : ''}
                 </span>
               </div>
-              
+
               <Textarea
                 placeholder="여기에 발표 스크립트를 붙여넣으세요."
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
                 className="rounded-lg border-[rgba(0,0,0,0.1)] bg-[#FAFBFC] resize-none text-sm leading-relaxed p-4"
                 style={{
-                  height: "800px",      
+                  height: "800px",
                   maxHeight: "800px",
-                  overflowY: "auto",   
+                  overflowY: "auto",
                 }}
               />
-              
+
               <p className="text-xs text-[#717182] mt-3 leading-relaxed shrink-0">
                 스크립트는 실시간 STT와 음절 단위로 매칭되어 텔레프롬프터에 표시됩니다.
               </p>
@@ -192,7 +310,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
             {/* File Upload */}
             <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <h3 className="text-base font-semibold text-[#030213] mb-4">발표 자료 입력</h3>
-              
+
               <div className="border-2 border-dashed border-[rgba(0,0,0,0.1)] rounded-lg bg-[#FAFBFC] p-8 flex flex-col items-center justify-center mb-4 cursor-pointer hover:border-[#0064FF] hover:bg-[#F4F6FF] transition-all">
                 <Upload className="size-10 text-[#717182] mb-2" />
                 <p className="text-center text-sm text-[#717182]">
@@ -202,7 +320,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                 </p>
               </div>
 
-              <Button 
+              <Button
                 variant="outline"
                 className="w-full h-10 border-[#0064FF] text-[#0064FF] hover:bg-[#F4F6FF] rounded-lg text-sm"
               >
@@ -213,7 +331,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
             {/* Time Settings */}
             <div className="bg-white rounded-xl shadow-sm border border-[rgba(0,0,0,0.06)] p-6">
               <h3 className="text-base font-semibold text-[#030213] mb-4">발표 시간 설정</h3>
-              
+
               <div className="space-y-4">
                 {/* Estimated Time */}
                 <div>
@@ -235,11 +353,10 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                       )}
                     </div>
                   </div>
-                  <div className={`h-10 px-4 rounded-lg border flex items-center text-sm font-medium ${
-                    script.length === 0 
-                      ? 'bg-[#FAFBFC] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#0064FF]'
-                  }`}>
+                  <div className={`h-10 px-4 rounded-lg border flex items-center text-sm font-medium ${script.length === 0
+                    ? 'bg-[#FAFBFC] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                    : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#0064FF]'
+                    }`}>
                     {formatTime(estimatedSeconds)} {estimatedSeconds > 0 && '(자동 계산)'}
                   </div>
                 </div>
@@ -247,7 +364,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                 {/* Target Time */}
                 <div>
                   <Label className="text-xs text-[#717182] mb-2 block">목표 발표 시간</Label>
-                  <Input 
+                  <Input
                     placeholder="예: 10:00"
                     value={targetTime}
                     onChange={handleTargetTimeChange}
@@ -257,24 +374,20 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
                 {/* Warning if adjustment needed */}
                 {needsAdjustment && (
-                  <div className={`flex items-start gap-2 p-3 rounded-lg border ${
-                    unitDifference > 0 
-                      ? 'bg-amber-50 border-amber-200'
-                      : 'bg-blue-50 border-blue-200'
-                  }`}>
-                    <AlertTriangle className={`size-4 mt-0.5 shrink-0 ${
-                      unitDifference > 0 ? 'text-amber-600' : 'text-blue-600'
-                    }`} />
+                  <div className={`flex items-start gap-2 p-3 rounded-lg border ${unitDifference > 0
+                    ? 'bg-amber-50 border-amber-200'
+                    : 'bg-blue-50 border-blue-200'
+                    }`}>
+                    <AlertTriangle className={`size-4 mt-0.5 shrink-0 ${unitDifference > 0 ? 'text-amber-600' : 'text-blue-600'
+                      }`} />
                     <div className="flex flex-col gap-1">
-                      <p className={`text-xs font-medium ${
-                        unitDifference > 0 ? 'text-amber-800' : 'text-blue-800'
-                      }`}>
+                      <p className={`text-xs font-medium ${unitDifference > 0 ? 'text-amber-800' : 'text-blue-800'
+                        }`}>
                         속도 조정 필요
                       </p>
-                      <p className={`text-xs ${
-                        unitDifference > 0 ? 'text-amber-700' : 'text-blue-700'
-                      }`}>
-                        {unitDifference > 0 
+                      <p className={`text-xs ${unitDifference > 0 ? 'text-amber-700' : 'text-blue-700'
+                        }`}>
+                        {unitDifference > 0
                           ? `스크립트를 약 ${charEquivalent}글자 분량 줄이거나 발표 속도를 높이세요.`
                           : `스크립트를 약 ${charEquivalent}글자 분량 늘리거나 발표 속도를 낮추세요.`
                         }
@@ -282,7 +395,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                     </div>
                   </div>
                 )}
-                
+
                 {/* Strong warning if target time is too short */}
                 {isTooShort && (
                   <div className="flex items-start gap-2 p-3 rounded-lg border bg-red-50 border-red-200">
@@ -300,16 +413,15 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
               </div>
             </div>
 
-            <Button 
-              onClick={() => onComplete(presentationTitle, script)}
-              disabled={!isFormValid}
-              className={`h-12 rounded-lg shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
-                isFormValid
-                  ? 'bg-[#0064FF] hover:bg-[#0052CC] text-white'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed hover:bg-gray-200 hover:scale-100'
-              }`}
+            <Button
+              onClick={handleComplete}
+              disabled={!isFormValid || isSaving}
+              className={`h-12 rounded-lg shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${isFormValid && !isSaving
+                ? 'bg-[#0064FF] hover:bg-[#0052CC] text-white'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed hover:bg-gray-200 hover:scale-100'
+                }`}
             >
-              발표 준비 완료
+              {isSaving ? '저장 중...' : '발표 준비 완료'}
             </Button>
           </div>
         </div>
