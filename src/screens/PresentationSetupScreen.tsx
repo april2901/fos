@@ -204,17 +204,43 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
         return;
       }
 
-      // fos.sessions 테이블에 저장
-      const { data, error } = await supabase
+      // 기존 세션이 있는지 확인
+      const { data: existingSession, error: fetchError } = await supabase
         .schema('fos')
         .from('sessions')
-        .insert({
-          user_id: user.id,
-          script_content: script,
-          title: presentationTitle,
-        })
-        .select()
+        .select('id')
+        .eq('user_id', user.id)
         .single();
+
+      let error;
+
+      if (existingSession) {
+        // 기존 세션 UPDATE
+        const { error: updateError } = await supabase
+          .schema('fos')
+          .from('sessions')
+          .update({
+            script_content: script,
+            title: presentationTitle,
+          })
+          .eq('id', existingSession.id);
+
+        error = updateError;
+        console.log('스크립트 업데이트 성공');
+      } else {
+        // 새 세션 INSERT
+        const { error: insertError } = await supabase
+          .schema('fos')
+          .from('sessions')
+          .insert({
+            user_id: user.id,
+            script_content: script,
+            title: presentationTitle,
+          });
+
+        error = insertError;
+        console.log('스크립트 생성 성공');
+      }
 
       if (error) {
         console.error('스크립트 저장 실패:', error);
@@ -222,8 +248,6 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
         setIsSaving(false);
         return;
       }
-
-      console.log('스크립트 저장 성공:', data);
 
       // 저장 성공 후 다음 화면으로
       onComplete(presentationTitle, script);
