@@ -208,7 +208,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
       const { data: existingSession, error: fetchError } = await supabase
         .schema('fos')
         .from('sessions')
-        .select('id')
+        .select('session_id')
         .eq('user_id', user.id)
         .single();
 
@@ -223,7 +223,7 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
             script_content: script,
             title: presentationTitle,
           })
-          .eq('id', existingSession.id);
+          .eq('session_id', existingSession.session_id);
 
         error = updateError;
         console.log('스크립트 업데이트 성공');

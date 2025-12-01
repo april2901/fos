@@ -20,12 +20,13 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isKakaoLoading, setIsKakaoLoading] = useState(false);
   const [capsLockOn, setCapsLockOn] = useState(false);
 
   // Validation states
   const [emailTouched, setEmailTouched] = useState(false);
   const [passwordTouched, setPasswordTouched] = useState(false);
-  const [loginError, setLoginError] = useState("");
+  const [loginError, setLoginError] = useState<string>("");
 
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -47,28 +48,50 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
   // Google OAuth login
   const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
     try {
-      setIsGoogleLoading(true);
-      setLoginError("");
-
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin,
-        },
+        }
       });
 
       if (error) {
         console.error('Google 로그인 오류:', error);
-        setLoginError('Google 로그인에 실패했습니다. 다시 시도해주세요.');
-        setIsGoogleLoading(false);
+        setLoginError('Google 로그인에 실패했습니다.');
       }
-      // Note: If successful, user will be redirected to Google login page
-      // and then back to our app, so we don't need to set loading to false
-    } catch (err) {
-      console.error('Google 로그인 예외:', err);
+    } catch (error) {
+      console.error('Google 로그인 예외:', error);
       setLoginError('Google 로그인 중 오류가 발생했습니다.');
+    } finally {
       setIsGoogleLoading(false);
+    }
+  };
+
+  // Kakao OAuth login
+  const handleKakaoLogin = async () => {
+    setIsKakaoLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: {
+            scope: 'profile_nickname profile_image', // 이메일 명시적 제외
+          }
+        }
+      });
+
+      if (error) {
+        console.error('Kakao 로그인 오류:', error);
+        setLoginError('카카오 로그인에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Kakao 로그인 예외:', error);
+      setLoginError('카카오 로그인 중 오류가 발생했습니다.');
+    } finally {
+      setIsKakaoLoading(false);
     }
   };
 
@@ -123,50 +146,60 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
         </p>
         {/* 구분선 - 짧고 두껍게 */}
         <div className="flex justify-center mb-8">
-          <div 
-            style={{ 
-              width: '96px', 
-              height: '1px', 
-              backgroundColor: '#9CA3AF' 
+          <div
+            style={{
+              width: '96px',
+              height: '1px',
+              backgroundColor: '#9CA3AF'
             }}
           />
         </div>
-          {/* Organization Login */}
-          <div>
-            {/* Google 버튼 - 둥글게 */}
-            <Button
-              variant="outline"
-              onClick={handleGoogleLogin}
-              disabled={isGoogleLoading}
-              className="w-full h-12 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-full gap-2"
-            >
-              {isGoogleLoading ? (
-                <>
-                  <Loader2 className="size-4 animate-spin" />
-                  Google 로그인 중...
-                </>
-              ) : (
-                <>
-                  <img src={googleLogo} alt="Google" className="w-6 h-6" />
-                  구글 계정으로 계속하기
-                </>
-              )}
-            </Button>
-            
-            {/* Kakao 버튼 추가 */}
-            <Button
-              onClick={() => {/* handleKakaoLogin */}}
-              style={{ 
-                backgroundColor: '#FEE500',
-                color: '#000000'
-              }}
-              className="w-full h-12 rounded-full gap-2 mt-3 border-0 hover:brightness-95"
-            >
-              <img src={kakaoLogo} alt="Kakao" className="w-6 h-6" />
-              카카오톡 계정으로 계속하기
-            </Button>
-          </div>
+        {/* Organization Login */}
+        <div>
+          {/* Google 버튼 - 둥글게 */}
+          <Button
+            variant="outline"
+            onClick={handleGoogleLogin}
+            disabled={isGoogleLoading}
+            className="w-full h-12 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-full gap-2"
+          >
+            {isGoogleLoading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Google 로그인 중...
+              </>
+            ) : (
+              <>
+                <img src={googleLogo} alt="Google" className="w-6 h-6" />
+                구글 계정으로 계속하기
+              </>
+            )}
+          </Button>
+
+          {/* Kakao 버튼 추가 */}
+          <Button
+            onClick={handleKakaoLogin}
+            disabled={isKakaoLoading}
+            style={{
+              backgroundColor: '#FEE500',
+              color: '#000000'
+            }}
+            className="w-full h-12 rounded-full gap-2 mt-3 border-0 hover:brightness-95"
+          >
+            {isKakaoLoading ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                로그인 중...
+              </>
+            ) : (
+              <>
+                <img src={kakaoLogo} alt="Kakao" className="w-6 h-6" />
+                카카오톡 계정으로 계속하기
+              </>
+            )}
+          </Button>
         </div>
       </div>
+    </div>
   );
 }
