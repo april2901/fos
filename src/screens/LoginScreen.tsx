@@ -132,8 +132,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="w-full h-full bg-gradient-to-br from-[#F4F6FF] to-white flex flex-col items-center justify-center pt-6">
-
+    <div className="fixed inset-0 bg-gradient-to-br from-[#F4F6FF] to-white flex flex-col items-center justify-center">
       {/* Login Card */}
       <div className="bg-white rounded-2xl shadow-lg border border-[rgba(0,0,0,0.06)] p-10 w-[440px]">
         {/* Logo */}
@@ -161,7 +160,7 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
             variant="outline"
             onClick={handleGoogleLogin}
             disabled={isGoogleLoading}
-            className="w-full h-12 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-full gap-2"
+            className="w-full h-12 border-[rgba(0,0,0,0.15)] text-[#030213] hover:bg-[#F4F6FF] rounded-full gap-2 mb-2"
           >
             {isGoogleLoading ? (
               <>
@@ -178,13 +177,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
 
           {/* Kakao 버튼 추가 */}
           <Button
+            variant="outline"
             onClick={handleKakaoLogin}
             disabled={isKakaoLoading}
-            style={{
-              backgroundColor: '#FEE500',
-              color: '#000000'
-            }}
-            className="w-full h-12 rounded-full gap-2 mt-3 border-0 hover:brightness-95"
+            className="w-full h-12 rounded-full gap-2 !bg-[#FEE500] !text-black hover:!bg-[#F5D800]"
           >
             {isKakaoLoading ? (
               <>
