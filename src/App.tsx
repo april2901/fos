@@ -71,6 +71,7 @@ export default function App() {
   // Presentation data state
   const [presentationTitle, setPresentationTitle] = useState('');
   const [presentationScript, setPresentationScript] = useState('');
+  const [targetTimeSeconds, setTargetTimeSeconds] = useState(0);
   const [extractedKeywords, setExtractedKeywords] = useState<string[]>([]);
 
   // 아젠다(논점 지도) 공통 상태
@@ -117,6 +118,7 @@ export default function App() {
     setHasPresentation(false);
     setPresentationTitle('');
     setPresentationScript('');
+    setTargetTimeSeconds(0);
     setExtractedKeywords([]);
     setAgendaItems([]);
     setAgendaMapData({ nodes: [], edges: [] });
@@ -175,9 +177,10 @@ export default function App() {
       case 'setup':
         return (
           <PresentationSetupScreen
-            onComplete={(title, script) => {
+            onComplete={(title, script, time) => {
               setPresentationTitle(title);
               setPresentationScript(script);
+              setTargetTimeSeconds(time);
               setCurrentScreen('teleprompter');
             }}
             onHomeClick={navigateToMain}
@@ -191,6 +194,7 @@ export default function App() {
             <TeleprompterScreen
               presentationTitle={presentationTitle}
               script={presentationScript}
+              targetTimeSeconds={targetTimeSeconds}
               onEnd={() => setShowEndModal(true)}
               onKeywordsExtracted={setExtractedKeywords}
               onHomeClick={navigateToMain}

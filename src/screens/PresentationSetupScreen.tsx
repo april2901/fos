@@ -106,10 +106,11 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
   const parseTargetTime = (input: string): number => {
     if (!input) return 0;
 
+    // Remove colons to handle raw input if needed, but split is safer for formatted
     const parts = input.split(':').map(p => parseInt(p) || 0);
 
     if (parts.length === 1) {
-      // If user enters just a number (e.g. "10"), treat as minutes
+      // If user enters just a number (e.g. "2"), treat as minutes
       return parts[0] * 60;
     } else if (parts.length === 2) {
       // MM:SS
@@ -131,6 +132,14 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
       return;
     }
 
+    // Special handling for single digit input to allow "2" -> "2 minutes" logic in parseTargetTime
+    // But for display, we want to show formatted time if possible.
+    // However, the user might be typing "0200" for 2:00.
+    
+    // Let's stick to the existing auto-format logic but ensure "2" results in "02:00" visually if they stop typing?
+    // Actually, the previous logic forces MM:SS format as they type.
+    // If they type "2", it becomes "2". If they type "20", it becomes "20". "200" -> "2:00".
+    
     // Auto-format based on length
     if (value.length <= 4) {
       // MM:SS format

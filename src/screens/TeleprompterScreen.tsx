@@ -162,36 +162,67 @@ function matchSpeechLocally(
   if (normalizedSpoken.length < 2) return null;
 
   const currentNormalizedIndex = findNormalizedIndexByOriginal(normalizedData.indexMap, lastMatchedIndex);
-  const searchStart = Math.max(0, currentNormalizedIndex - 5);
-  const searchEnd = Math.min(normalizedData.text.length, currentNormalizedIndex + 400);
+  // 검색 범위를 현재 위치 기준으로 매우 좁게 제한 (연속적인 매칭만 허용)
+  // 앞으로만 검색하고, 뒤로는 거의 안 봄 (문장 점프 방지)
+  const searchStart = Math.max(0, currentNormalizedIndex - 3); // 뒤로는 3글자만
+  const searchEnd = Math.min(normalizedData.text.length, currentNormalizedIndex + 80); // 앞으로 80글자만
   const searchScript = normalizedData.text.slice(searchStart, searchEnd);
 
-  let bestMatch = { index: -1, length: 0 };
+  let bestMatch = { index: -1, length: 0, distance: Infinity };
 
   const maxLen = Math.min(25, normalizedSpoken.length);
   for (let len = maxLen; len >= 2; len--) {
     const searchPhrase = normalizedSpoken.slice(-len);
-    const idx = searchScript.indexOf(searchPhrase);
-
-    if (idx !== -1) {
-      bestMatch = { index: searchStart + idx, length: len };
+    
+    // 모든 매칭 위치를 찾아서 가장 가까운 것 선택
+    let idx = 0;
+    let foundAny = false;
+    while (true) {
+      const foundIdx = searchScript.indexOf(searchPhrase, idx);
+      if (foundIdx === -1) break;
+      
+      foundAny = true;
+      const absoluteIdx = searchStart + foundIdx;
+      const distance = Math.abs(absoluteIdx - currentNormalizedIndex);
+      
+      // 현재 위치에서 가장 가까운 매칭 선택 (같은 길이라면)
+      if (len > bestMatch.length || (len === bestMatch.length && distance < bestMatch.distance)) {
+        bestMatch = { index: absoluteIdx, length: len, distance };
+      }
+      
+      idx = foundIdx + 1;
+    }
+    
+    // 이 길이에서 매칭을 찾았으면 더 짧은 길이는 검색하지 않음
+    if (foundAny && bestMatch.length === len) {
       break;
     }
   }
 
   if (bestMatch.index === -1 && normalizedSpoken.length >= 4) {
     const spokenEnd = normalizedSpoken.slice(-20);
-    const lcsResult = findLongestCommonSubstringLocal(spokenEnd, searchScript.slice(0, 250));
+    const lcsResult = findLongestCommonSubstringLocal(spokenEnd, searchScript.slice(0, 60)); // 더 좁은 범위
 
-    if (lcsResult.length >= 3) {
-      bestMatch = {
-        index: searchStart + lcsResult.start,
-        length: lcsResult.length,
-      };
+    if (lcsResult.length >= 4) { // 최소 4글자 이상 매칭 필요
+      const absoluteIdx = searchStart + lcsResult.start;
+      const distance = Math.abs(absoluteIdx - currentNormalizedIndex);
+      // 거리가 30 이내일 때만 허용
+      if (distance <= 30 && (bestMatch.index === -1 || distance < bestMatch.distance)) {
+        bestMatch = {
+          index: absoluteIdx,
+          length: lcsResult.length,
+          distance
+        };
+      }
     }
   }
 
   if (bestMatch.index === -1) {
+    return null;
+  }
+  
+  // 최종 검증: 현재 위치에서 너무 멀면 무시
+  if (bestMatch.distance > 40) {
     return null;
   }
 
@@ -222,7 +253,7 @@ function formatTimeMMSS(totalSeconds: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
-export default function TeleprompterScreen({ presentationTitle, script, targetTimeSeconds = 0, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
+export default function TeleprompterScreen({ presentationTitle, script, targetTimeSeconds = 600, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [currentPhraseInSentence, setCurrentPhraseInSentence] = useState(0);
@@ -238,6 +269,19 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   const [suggestionInsertIndex, setSuggestionInsertIndex] = useState<number>(0); // LLM이 계산한 삽입 위치
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [showSuggestionBanner, setShowSuggestionBanner] = useState(false);
+  const [demoSuggestionShown, setDemoSuggestionShown] = useState(false); // 데모 제안이 이미 표시되었는지 추적
+
+  // 데모 트리거를 위한 음성 인식 텍스트 추적
+  const [demoTriggerDetected, setDemoTriggerDetected] = useState(false);
+
+  const DEMO_TARGET_SECONDS = 120;
+  const DEMO_SCRIPT_SNIPPET = "Focus on Speaking의 ‘스마트 텔레프롬프터’는 발표자에게 필요한 정보를 하나의 화면에서 보여줍니다.";
+  const DEMO_SKIP_TARGET_TEXT = "우측 하단을 확인해보시면, 발표용 디스플레이와의 연동을 통해 발표 자료를 자동으로 넘겨주는 기능도 존재합니다.";
+  const DEMO_TRIGGER_TEXT = "바로 이렇게 말이죠.";
+  const isKnownDemoScript = script.includes(DEMO_SCRIPT_SNIPPET);
+  const isDemoMode = isKnownDemoScript || targetTimeSeconds === DEMO_TARGET_SECONDS;
+  // 준비화면에서 넘어온 시간을 그대로 사용 (데모모드 강제 2분 제거)
+  const effectiveTargetTimeSeconds = targetTimeSeconds || 0;
 
   // 현재 소요 시간 (초 단위)
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -254,6 +298,12 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   const lastApiCallTime = useRef(0); // 마지막 API 호출 시간
   const fullScriptRef = useRef(modifiedScript); // modifiedScript를 ref로 추적 (콜백에서 최신값 사용)
   const intentionalStopRef = useRef(false); // 의도적 중지 여부 (일시정지 시 true)
+
+  const isDemoModeRef = useRef(isDemoMode);
+
+  useEffect(() => {
+    isDemoModeRef.current = isDemoMode;
+  }, [isDemoMode]);
 
   // isRunning 상태를 ref에 동기화
   useEffect(() => {
@@ -318,6 +368,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
 
   // Use a modifiable copy of the script so we can inject suggested reconstruction
   const fullScript = modifiedScript;
+  const demoSkipTargetIndex = useMemo(() => fullScript.indexOf(DEMO_SKIP_TARGET_TEXT), [fullScript]);
+  const demoTriggerIndex = useMemo(() => fullScript.indexOf(DEMO_TRIGGER_TEXT), [fullScript]);
 
   const normalizedScriptData = useMemo(() => normalizeScriptWithIndexMapClient(fullScript), [fullScript]);
   const normalizedScriptRef = useRef<NormalizedScriptData | null>(normalizedScriptData);
@@ -331,6 +383,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
     setReconstructedSuggestion(null);
     setShowSuggestionBanner(false);
     setSkippedRanges([]);
+    setDemoSuggestionShown(false);
+    setDemoTriggerDetected(false);
   }, [script]);
 
   const totalPages = 20;
@@ -491,6 +545,7 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
 
   // Trigger LLM reconstruction when skipped ranges grow large enough
   useEffect(() => {
+    if (isDemoMode) return;
     if (!skippedRanges || skippedRanges.length === 0) return;
     if (isReconstructing || reconstructedSuggestion) return; // already working or have suggestion
 
@@ -542,7 +597,61 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
       }
     })();
 
-  }, [skippedRanges, parsedScript, currentCharIndex, fullScript, isReconstructing, reconstructedSuggestion]);
+  }, [isDemoMode, skippedRanges, parsedScript, currentCharIndex, fullScript, isReconstructing, reconstructedSuggestion]);
+
+  // --- Demo Logic: Hardcoded behavior for video filming ---
+  // "바로 이렇게 말이죠"가 음성 인식되면 데모 기능 작동
+  useEffect(() => {
+    if (!isDemoMode) return;
+    if (demoSuggestionShown) return; // 이미 제안이 표시된 적 있으면 다시 표시하지 않음
+    if (!demoTriggerDetected) return; // 트리거 텍스트가 감지되지 않았으면 대기
+
+    if (demoSkipTargetIndex === -1) return;
+
+    // 제안 표시되었음을 먼저 기록 (중복 실행 방지)
+    setDemoSuggestionShown(true);
+
+    // 0.5초 후에 빨간 하이라이트 + 인덱스 이동
+    setTimeout(() => {
+      // 스킵 대상 문장의 시작점을 정확히 찾기 (문장 시작 부분 포함)
+      const skipStart = demoSkipTargetIndex;
+      const skipEnd = skipStart + DEMO_SKIP_TARGET_TEXT.length;
+
+      // Mark the skipped range (Red highlight)
+      setSkippedRanges([{ start: skipStart, end: skipEnd }]);
+      
+      // "바로 이렇게 말이죠" 위치로 현재 인덱스 이동
+      const triggerIdx = fullScript.indexOf(DEMO_TRIGGER_TEXT);
+      if (triggerIdx !== -1) {
+        // 트리거 텍스트 끝 위치로 이동
+        const newIndex = triggerIdx + DEMO_TRIGGER_TEXT.length;
+        currentCharIndexRef.current = newIndex;
+        setCurrentCharIndex(newIndex);
+      }
+    }, 500); // 0.5초 딜레이
+    
+    // 5초 후에 제안 배너 표시 (0.5초 + 4.5초)
+    setTimeout(() => {
+      // Prepare the suggestion
+      const autoGenerated = `참고로, 우측 하단을 확인해보시면, 발표용 디스플레이와의 연동을 통해 발표 자료를 자동으로 넘겨주는 기능도 존재합니다.`;
+      setReconstructedSuggestion(autoGenerated);
+      
+      // Set insertion point after "AI 내용을 적용해서 읽어보겠습니다."
+      const anchor = 'AI 내용을 적용해서 읽어보겠습니다.';
+      const anchorIdx = fullScript.indexOf(anchor);
+      
+      if (anchorIdx !== -1) {
+         // Insert after the anchor sentence
+         setSuggestionInsertIndex(anchorIdx + anchor.length + 1); 
+      } else {
+         // Fallback: insert at current position
+         setSuggestionInsertIndex(currentCharIndexRef.current);
+      }
+      
+      setShowSuggestionBanner(true);
+    }, 5000); // 5초 딜레이 (0.5초 후 하이라이트 + 4.5초 후 제안)
+    
+  }, [demoTriggerDetected, demoSkipTargetIndex, fullScript, demoSuggestionShown, currentCharIndex]);
 
   // currentCharIndex가 변경되면 해당하는 문장/구절 인덱스 계산
   useEffect(() => {
@@ -596,11 +705,14 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
     }
   }, [currentSentenceIndex, parsedScript.length, autoAdvanceSlides, isRunning, currentPage, totalPages]);
 
-  // Get visible sentences for rolling viewport (current +/- 2)
+  // Get visible sentences for rolling viewport
+  // 이전 2문장, 현재 문장, 다음 2문장 = 총 5문장 표시
+  // 현재 문장이 가운데에 위치하도록 설정
   const visibleSentences = useMemo(() => {
-    const contextSize = 2;
-    const startIdx = Math.max(0, currentSentenceIndex - contextSize);
-    const endIdx = Math.min(parsedScript.length, currentSentenceIndex + contextSize + 1);
+    const beforeCount = 2; // 이전 문장 2개
+    const afterCount = 2;  // 다음 문장 2개
+    const startIdx = Math.max(0, currentSentenceIndex - beforeCount);
+    const endIdx = Math.min(parsedScript.length, currentSentenceIndex + afterCount + 1);
 
     return parsedScript.slice(startIdx, endIdx).map((sentence, idx) => ({
       sentence,
@@ -659,10 +771,35 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   };
 
   const renderSentenceWithHighlight = (sentence: Sentence, position: number) => {
+    // 데모 모드에서 스킵 대상 문장인지 확인 (텍스트 직접 비교)
+    const isDemoSkipSentence = isDemoMode && sentence.text.includes(DEMO_SKIP_TARGET_TEXT.slice(0, 20));
+    
+    // 마지막 문장까지 읽었는지 확인 (currentCharIndex가 스크립트 끝에 도달)
+    const isFinished = currentCharIndex >= fullScript.length - 5;
+    
+    // 완료 상태면 모든 문장을 회색으로 표시 (하이라이팅 없음)
+    if (isFinished) {
+      if (isDemoSkipSentence && skippedRanges.length > 0) {
+        return <span style={{ color: '#FF0000' }}>{sentence.text}</span>;
+      }
+      return renderTextWithSkipped(sentence.text, sentence.startIndex, "text-[#D0D0D0]");
+    }
+    
     if (position < 0) {
-      // Previous sentence - 스킵된 부분은 주황색, 나머지는 회색
+      // Previous sentence
+      if (isDemoSkipSentence && skippedRanges.length > 0) {
+        // 데모 스킵 문장은 전체를 빨간색으로
+        return <span style={{ color: '#FF0000' }}>{sentence.text}</span>;
+      }
+      // 일반 스킵된 부분은 주황색, 나머지는 회색
       return renderTextWithSkipped(sentence.text, sentence.startIndex, "text-[#D0D0D0]");
     } else if (position === 0) {
+      // Current sentence
+      if (isDemoSkipSentence && skippedRanges.length > 0) {
+        // 데모 스킵 문장은 전체를 빨간색으로
+        return <span style={{ color: '#FF0000' }}>{sentence.text}</span>;
+      }
+      
       // Current sentence - entire text in blue, current phrase with blue bg + white text
       const currentSentence = parsedScript[currentSentenceIndex];
       const currentPhrase = currentSentence.phrases[currentPhraseInSentence];
@@ -697,9 +834,9 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   };
 
   const getSentenceOpacity = (position: number) => {
-    if (position === 0) return 1.0;
-    if (position < 0) return 0.4 + (0.2 * (position + 2)); // -2 = 0.4, -1 = 0.6
-    return 0.7 - (0.15 * (position - 1)); // 1 = 0.7, 2 = 0.55
+    if (position === 0) return 1.0;  // 현재 문장 (가운데)
+    if (position === -1 || position === 1) return 0.6;  // 바로 앞/뒤 문장
+    return 0.4; // position === -2 또는 2 (가장 바깥 문장)
   };
 
   // 현재 charIndex를 ref로 추적 (콜백 내에서 최신 값 사용)
@@ -714,12 +851,37 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
     cumulativeTranscriptRef.current = cumulativeTranscript;
   }, [cumulativeTranscript]);
 
+  // 한 번에 점프할 수 있는 최대 글자 수 (너무 멀리 튀는 것 방지)
+  // 중간에 문장을 건너뛰지 않도록 매우 엄격하게 제한
+  const MAX_JUMP_CHARS = 30;
+
   const handleMatchUpdate = useCallback(
-    (newIndex: number, skippedRange?: { start: number; end: number } | null) => {
-      if (newIndex > currentCharIndexRef.current) {
+    (newIndex: number, skippedRange?: { start: number; end: number } | null, forceUpdate?: boolean) => {
+      const current = currentCharIndexRef.current;
+      
+      // forceUpdate가 true면 점프 제한 무시 (데모 모드 전용)
+      if (!forceUpdate) {
+        // 한 번에 너무 멀리 점프하는 것 방지 (매우 엄격)
+        const jumpDistance = newIndex - current;
+        if (jumpDistance > MAX_JUMP_CHARS) {
+          // 너무 멀리 점프하려고 하면 무시
+          console.log(`⚠️ 점프 제한: ${current} -> ${newIndex} (${jumpDistance}자 차이, 최대 ${MAX_JUMP_CHARS}자)`);
+          return;
+        }
+        // 뒤로 가는 것도 방지
+        if (newIndex < current) {
+          console.log(`⚠️ 뒤로 점프 방지: ${current} -> ${newIndex}`);
+          return;
+        }
+      }
+
+      if (newIndex > current || forceUpdate) {
         currentCharIndexRef.current = newIndex;
         setCurrentCharIndex(newIndex);
       }
+
+      // 데모 모드에서는 일반 스킵 하이라이팅 비활성화 (데모 전용 로직에서만 처리)
+      if (isDemoModeRef.current) return;
 
       if (skippedRange && skippedRange.end > skippedRange.start + 1) {
         setSkippedRanges(prev => [
@@ -826,6 +988,18 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
 
       setTranscript(currentText);
 
+      // 데모 모드에서 "바로 이렇게 말이죠" 감지
+      if (isDemoModeRef.current && !demoSuggestionShown) {
+        const normalizedCurrent = normalizeTextLocal(currentText);
+        const normalizedTrigger = normalizeTextLocal(DEMO_TRIGGER_TEXT);
+        // 트리거 텍스트의 일부가 포함되어 있으면 감지
+        if (normalizedCurrent.includes(normalizedTrigger.slice(0, 6)) || 
+            normalizedCurrent.includes('바로이렇게') ||
+            normalizedCurrent.includes('말이죠')) {
+          setDemoTriggerDetected(true);
+        }
+      }
+
       if (!finalTranscript.trim() && interimTranscript.length < 8) {
         return;
       }
@@ -875,7 +1049,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
 
           if (result && typeof result.currentMatchedIndex === 'number') {
             const newIndex = result.currentMatchedIndex;
-            if (result.isCorrect && newIndex > currentCharIndexRef.current) {
+            const trustResult = isDemoModeRef.current || result.isCorrect;
+            if (trustResult && newIndex > currentCharIndexRef.current) {
               handleMatchUpdate(newIndex, result.skippedRange);
             }
           }
@@ -942,7 +1117,7 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   const nextPage = currentPage < totalPages ? currentPage + 1 : totalPages;
 
   // 시간 초과 여부 계산
-  const isOverTime = targetTimeSeconds > 0 && elapsedSeconds > targetTimeSeconds;
+  const isOverTime = effectiveTargetTimeSeconds > 0 && elapsedSeconds > effectiveTargetTimeSeconds;
 
   return (
     <div className="w-full h-full bg-[#FAFBFC]">
@@ -981,9 +1156,10 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
               </div>
 
               {/* Teleprompter Text - Rolling Dial Viewport with Sentence Lines */}
-              <div className="flex-grow flex items-center justify-center overflow-hidden px-12 py-10 relative">
+              <div className="flex-grow flex items-start justify-center overflow-hidden px-12 py-10 relative">
+                {/* 텍스트 크기 조정 박스가 원고를 가리지 않도록 상단 여백 확보 */}
                 <div
-                  className="w-full max-w-5xl"
+                  className="w-full max-w-5xl mt-16"
                   style={{
                     fontSize: `${fontSize}px`,
                     fontWeight: 600,
@@ -992,12 +1168,16 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                 >
                   {visibleSentences.map(({ sentence, globalIndex, position }) => {
                     const opacity = getSentenceOpacity(position);
+                    const isPastSentence = position < 0;
                     return (
                       <div
                         key={globalIndex}
-                        className="transition-all duration-500 ease-out mb-8"
+                        className="transition-all duration-500 ease-out"
                         style={{
-                          opacity: opacity
+                          opacity: opacity,
+                          fontSize: isPastSentence ? `${fontSize * 0.7}px` : `${fontSize}px`,
+                          lineHeight: isPastSentence ? 1.3 : 1.7,
+                          marginBottom: isPastSentence ? '12px' : '32px'
                         }}
                       >
                         {renderSentenceWithHighlight(sentence, position)}
@@ -1102,6 +1282,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                             setSkippedRanges([]);
                             // 누적 음성 인식 결과도 리셋하여 새 스크립트 기준으로 매칭 시작
                             setCumulativeTranscript("");
+                            // 현재 인덱스 유지 (커서 이동하지 않음)
+                            // currentCharIndex는 그대로 유지
                           }}
                           className="h-8 bg-[#0064FF] text-white rounded px-3 text-xs"
                         >적용</button>
@@ -1142,11 +1324,12 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                     }`}>
                       {isOverTime ? (
                         <span className="text-md font-semibold text-red-600">
-                          +{formatTimeMMSS(elapsedSeconds - targetTimeSeconds)}
+                          +{formatTimeMMSS(elapsedSeconds - effectiveTargetTimeSeconds)}
                         </span>
                       ) : (
                         <span className="text-xl font-semibold tabular-nums text-[#030213]">
-                          {targetTimeSeconds > 0 ? formatTimeMMSS(Math.max(0, targetTimeSeconds - elapsedSeconds)) : '--:--'}
+                          {/* targetTimeSeconds가 0보다 크면 잔여 시간 표시, 아니면 --:-- */}
+                          {effectiveTargetTimeSeconds > 0 ? formatTimeMMSS(Math.max(0, effectiveTargetTimeSeconds - elapsedSeconds)) : '--:--'}
                         </span>
                       )}
                     </div>
