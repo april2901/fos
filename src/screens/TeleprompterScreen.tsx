@@ -1141,8 +1141,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                         : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)]'
                     }`}>
                       {isOverTime ? (
-                        <span className="text-md font-semibold text-red-600">
-                          +{formatTimeMMSS(elapsedSeconds - targetTimeSeconds)}
+                        <span className="text-xl font-semibold text-red-600">
+                          -{formatTimeMMSS(elapsedSeconds - targetTimeSeconds)}  
                         </span>
                       ) : (
                         <span className="text-xl font-semibold tabular-nums text-[#030213]">
