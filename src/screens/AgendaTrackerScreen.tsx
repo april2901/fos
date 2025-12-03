@@ -898,15 +898,37 @@ export default function AgendaTrackerScreen({
     const newNodeId = ++nodeCounterRef.current;
     const color = CATEGORY_COLORS[selectedNodeType];
 
-    const parentId = selectedNodeRef.current || 1;
-    const parentNode = nodes.get(parentId);
-    const parentLevel =
-      parentNode?.level !== undefined ? parentNode.level : 0;
+    // 부모 노드 결정
+    let actualParentId: number | null = null;
+    let level = 0;
+
+    const allNodes = nodes.get();
+
+    if (allNodes.length === 0) {
+      // 첫 번째 노드인 경우 (루트)
+      actualParentId = null;
+      level = 0;
+    } else {
+      // 기존 노드가 있는 경우
+      if (selectedNodeRef.current) {
+        actualParentId = selectedNodeRef.current;
+      } else {
+        // 선택된 노드가 없으면 루트(1) 또는 첫 번째 노드를 부모로
+        actualParentId = 1;
+        // 만약 1번 노드가 없다면(삭제 등으로) 존재하는 첫 번째 노드를 부모로
+        if (!nodes.get(actualParentId)) {
+          actualParentId = allNodes[0].id as number;
+        }
+      }
+
+      const parentNode = nodes.get(actualParentId);
+      level = (parentNode?.level !== undefined ? parentNode.level : 0) + 1;
+    }
 
     nodes.add({
       id: newNodeId,
       label: newNodeText,
-      level: parentLevel + 1,
+      level: level,
       fixed: { x: true, y: false },
       color: {
         background: color.background,
@@ -918,7 +940,9 @@ export default function AgendaTrackerScreen({
       },
     });
 
-    edges.add({ from: parentId, to: newNodeId });
+    if (actualParentId !== null) {
+      edges.add({ from: actualParentId, to: newNodeId });
+    }
 
     selectedNodeRef.current = newNodeId;
     networkRef.current?.selectNodes([newNodeId]);
@@ -946,12 +970,15 @@ export default function AgendaTrackerScreen({
       newNodeId,
       newNodeText,
       selectedNodeType,
-      parentLevel + 1,
+      level,
       "",
       newTimestamp,
       newNodeText
     );
-    saveEdgeToDB(parentId, newNodeId);
+
+    if (actualParentId !== null) {
+      saveEdgeToDB(actualParentId, newNodeId);
+    }
 
     setNewNodeText("");
     setSelectedNodeType("일반");
