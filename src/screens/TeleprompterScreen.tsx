@@ -1,7 +1,7 @@
 import { TopNavBar } from "../components/TopNavBar";
 import { Button } from "../components/ui/button";
 import { StatusPill } from "../components/StatusPill";
-import { Play, Pause, FileText, Type, Mic, Clock } from "lucide-react";
+import { Play, Pause, FileText, Type, Mic } from "lucide-react";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 
 // Web Speech API Type Definitions
@@ -36,7 +36,6 @@ declare global {
 interface TeleprompterScreenProps {
   presentationTitle: string;
   script: string;
-  targetTimeSeconds?: number; // 목표 발표 시간 (초 단위)
   onEnd: () => void;
   onKeywordsExtracted: (keywords: string[]) => void;
   onHomeClick: () => void;
@@ -215,33 +214,21 @@ function matchSpeechLocally(
   };
 }
 
-// 시간 포맷팅 헬퍼 함수 (MM:SS 형식)
-function formatTimeMMSS(totalSeconds: number): string {
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-}
-
-export default function TeleprompterScreen({ presentationTitle, script, targetTimeSeconds = 0, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
+export default function TeleprompterScreen({ presentationTitle, script, onEnd, onKeywordsExtracted, onHomeClick, onBack }: TeleprompterScreenProps) {
   const [isRunning, setIsRunning] = useState(false);
   const [currentSentenceIndex, setCurrentSentenceIndex] = useState(0);
   const [currentPhraseInSentence, setCurrentPhraseInSentence] = useState(0);
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
   const [autoAdvanceSlides, setAutoAdvanceSlides] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  // 발표 속도 관련 state 주석 처리
-  // const [speed, setSpeed] = useState<"느림" | "적정" | "빠름">("적정");
-  // const [volume, setVolume] = useState(6.5);
+  const [speed, setSpeed] = useState<"느림" | "적정" | "빠름">("적정");
+  const [volume, setVolume] = useState(6.5);
   const [fontSize, setFontSize] = useState(32); // Default font size in px
   const [modifiedScript, setModifiedScript] = useState<string>(script);
   const [reconstructedSuggestion, setReconstructedSuggestion] = useState<string | null>(null);
   const [suggestionInsertIndex, setSuggestionInsertIndex] = useState<number>(0); // LLM이 계산한 삽입 위치
   const [isReconstructing, setIsReconstructing] = useState(false);
   const [showSuggestionBanner, setShowSuggestionBanner] = useState(false);
-
-  // 현재 소요 시간 (초 단위)
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Web Speech API states
   const [isListening, setIsListening] = useState(false);
@@ -264,29 +251,6 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   useEffect(() => {
     fullScriptRef.current = modifiedScript;
   }, [modifiedScript]);
-
-  // 타이머 관리 (isRunning에 따라 시작/정지)
-  useEffect(() => {
-    if (isRunning) {
-      // 타이머 시작
-      timerIntervalRef.current = setInterval(() => {
-        setElapsedSeconds(prev => prev + 1);
-      }, 1000);
-    } else {
-      // 타이머 정지
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    }
-
-    // cleanup
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, [isRunning]);
 
   // Extract keywords from script using Gemini API
   useEffect(() => {
@@ -909,7 +873,6 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
       if (currentCharIndex === 0) {
         setCumulativeTranscript("");
         setSkippedRanges([]); // 틀린 부분도 초기화
-        setElapsedSeconds(0); // 타이머도 초기화
       }
 
       // 의도적 중지 플래그 해제
@@ -937,12 +900,8 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
     }
   };
 
-  // 발표 속도 관련 변수 주석 처리
-  // const volumeCategory = volume < 4 ? "작음" : volume > 7.5 ? "큼" : "적정";
+  const volumeCategory = volume < 4 ? "작음" : volume > 7.5 ? "큼" : "적정";
   const nextPage = currentPage < totalPages ? currentPage + 1 : totalPages;
-
-  // 시간 초과 여부 계산
-  const isOverTime = targetTimeSeconds > 0 && elapsedSeconds > targetTimeSeconds;
 
   return (
     <div className="w-full h-full bg-[#FAFBFC]">
@@ -1114,41 +1073,27 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                   </div>
                 )}
 
-                {/* 발표 시간 정보 */}
-                <div className="flex gap-3">
-                  {/* 현재 발표 시간 */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="size-4 text-[#717182]" />
-                      <p className="text-xs font-medium text-[#717182]">현재 발표 시간</p>
+                {/* 발표 속도 */}
+                <div>
+                  <p className="text-xs text-[#717182] mb-2 font-medium">발표 속도</p>
+                  <div className="flex gap-2">
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "느림"
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      }`}>
+                      느림
                     </div>
-                    <div className="h-12 px-4 rounded-lg bg-[#F4F6FF] border border-[rgba(0,0,0,0.06)] flex items-center justify-center">
-                      <span className="text-xl font-semibold tabular-nums text-[#030213]">
-                        {formatTimeMMSS(elapsedSeconds)}
-                      </span>
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "적정"
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      }`}>
+                      적정
                     </div>
-                  </div>
-
-                  {/* 잔여 시간 */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="size-4 text-[#717182]" />
-                      <p className="text-xs font-medium text-[#717182]">잔여 시간</p>
-                    </div>
-                    <div className={`h-12 px-4 rounded-lg border flex items-center justify-center ${
-                      isOverTime 
-                        ? 'bg-red-50 border-red-200' 
-                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)]'
-                    }`}>
-                      {isOverTime ? (
-                        <span className="text-md font-semibold text-red-600">
-                          +{formatTimeMMSS(elapsedSeconds - targetTimeSeconds)}
-                        </span>
-                      ) : (
-                        <span className="text-xl font-semibold tabular-nums text-[#030213]">
-                          {targetTimeSeconds > 0 ? formatTimeMMSS(Math.max(0, targetTimeSeconds - elapsedSeconds)) : '--:--'}
-                        </span>
-                      )}
+                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "빠름"
+                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
+                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
+                      }`}>
+                      빠름
                     </div>
                   </div>
                 </div>
