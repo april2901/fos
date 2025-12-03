@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import { AgendaTag } from "../components/AgendaTag";
 import { ZoomIn, ZoomOut, Download, Move } from "lucide-react";
 import { AgendaMapData } from "../App";
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { DataSet, Network } from "vis-network/standalone";
 
 interface MeetingSummaryScreenProps {
@@ -12,13 +12,20 @@ interface MeetingSummaryScreenProps {
   onBack: () => void;
 }
 
-const CATEGORY_COLORS: Record<string, { background: string; border: string }> = {
-  리서치: { background: "rgba(220, 252, 231, 0.9)", border: "#22C55E" },
-  아이디어: { background: "rgba(255, 243, 210, 0.9)", border: "#F97316" },
-  개발: { background: "rgba(219, 234, 254, 0.9)", border: "#3B82F6" },
-  디자인: { background: "rgba(245, 230, 255, 0.9)", border: "#A855F7" },
-  일반: { background: "rgba(230, 240, 245, 0.9)", border: "#4B5563" },
-};
+const CATEGORY_COLORS: Record<string, { background: string; border: string }> =
+  {
+    리서치: { background: "rgba(220, 252, 231, 0.9)", border: "#22C55E" },
+    아이디어: { background: "rgba(255, 243, 210, 0.9)", border: "#F97316" },
+    개발: { background: "rgba(219, 234, 254, 0.9)", border: "#3B82F6" },
+    디자인: { background: "rgba(245, 230, 255, 0.9)", border: "#A855F7" },
+    일반: { background: "rgba(230, 240, 245, 0.9)", border: "#4B5563" },
+  };
+
+const CATEGORY_LIST = ["리서치", "아이디어", "개발", "디자인", "일반"];
+
+const DEFAULT_NODE_SIZE = 30;
+const HIGHLIGHT_NODE_SIZE = 80;
+const DIM_NODE_SIZE = 18;
 
 export default function MeetingSummaryScreen({
   agendaMapData,
@@ -28,6 +35,96 @@ export default function MeetingSummaryScreen({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const networkRef = useRef<Network | null>(null);
   const nodesRef = useRef<DataSet<any> | null>(null);
+  const nodeCategoryMapRef = useRef<Record<number, string>>({});
+
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  // 카테고리 필터 적용 (색 + 크기)
+  const applyCategoryFilter = (category: string | null) => {
+  if (!nodesRef.current) return;
+
+  const nodes = nodesRef.current;
+  const allNodes = nodes.get() as any[];
+
+  allNodes.forEach((n) => {
+    const cat = nodeCategoryMapRef.current[n.id] || "일반";
+    const baseColor = CATEGORY_COLORS[cat] || CATEGORY_COLORS["일반"];
+
+    if (!category) {
+      // 필터 없음: 기본 스타일
+      nodes.update({
+        id: n.id,
+        color: {
+          background: baseColor.background,
+          border: baseColor.border,
+        },
+        borderWidth: 2,
+        font: {
+          ...(n.font || {}),
+          size: 13,
+          color: "#030213",
+        },
+        margin: { top: 12, right: 12, bottom: 12, left: 12 },
+        shadow: {
+          enabled: true,
+          color: "rgba(0,0,0,0.1)",
+          size: 8,
+          x: 0,
+          y: 2,
+        },
+      });
+    } else if (cat === category) {
+      // 선택된 카테고리: 확실하게 강조
+      nodes.update({
+        id: n.id,
+        color: {
+          background: baseColor.background,
+          border: baseColor.border,
+        },
+        borderWidth: 3,
+        font: {
+          ...(n.font || {}),
+          size: 18,           // 글자 크게
+          color: "#030213",
+        },
+        margin: { top: 20, right: 20, bottom: 20, left: 20 }, // 박스도 키우기
+        shadow: {
+          enabled: true,
+          color: "rgba(0,0,0,0.18)",
+          size: 14,
+          x: 0,
+          y: 3,
+        },
+      });
+    } else {
+      // 나머지 카테고리: 작게 + 흐리게
+      nodes.update({
+        id: n.id,
+        color: {
+          background: "rgba(243, 244, 246, 0.5)",
+          border: "#E5E7EB",
+        },
+        borderWidth: 1,
+        font: {
+          ...(n.font || {}),
+          size: 11,
+          color: "#9CA3AF",
+        },
+        margin: { top: 8, right: 8, bottom: 8, left: 8 },
+        shadow: {
+          enabled: false,
+        },
+      });
+    }
+  });
+};
+
+  const handleCategoryClick = (category: string) => {
+    const next =
+      selectedCategory === category ? null : (category as string);
+    setSelectedCategory(next);
+    applyCategoryFilter(next);
+  };
 
   useEffect(() => {
     if (!containerRef.current || networkRef.current) return;
@@ -35,11 +132,18 @@ export default function MeetingSummaryScreen({
     const nodes = new DataSet<any>();
     const edges = new DataSet<any>();
 
+    nodeCategoryMapRef.current = {};
+
     agendaMapData.nodes.forEach((node) => {
-      const color = CATEGORY_COLORS[node.category] || CATEGORY_COLORS["일반"];
+      const color =
+        CATEGORY_COLORS[node.category] || CATEGORY_COLORS["일반"];
+
+      nodeCategoryMapRef.current[node.id] = node.category;
+
       nodes.add({
         id: node.id,
         label: node.label,
+        size: DEFAULT_NODE_SIZE,
         color: {
           background: color.background,
           border: color.border,
@@ -106,13 +210,18 @@ export default function MeetingSummaryScreen({
       options
     );
 
+    // 초기엔 필터 없음 상태로 스타일 맞추기
+    applyCategoryFilter(null);
+
     return () => {
       if (networkRef.current) {
         networkRef.current.destroy();
         networkRef.current = null;
       }
       nodesRef.current = null;
+      nodeCategoryMapRef.current = {};
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agendaMapData]);
 
   const handleZoomIn = () => {
@@ -259,7 +368,7 @@ export default function MeetingSummaryScreen({
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-[#FAFBFC] to-white rounded-lg h-[400px] border border-[rgba(0,0,0,0.06)] relative">
+              <div className="bg-gradient-to-br from-[#FAFBFC] to-white rounded-lg h-[400px] border border-[rgba(0,0,0,0.06)] relative mb-4">
                 <div
                   ref={containerRef}
                   className="w-full h-full"
@@ -274,6 +383,23 @@ export default function MeetingSummaryScreen({
                     아젠다 맵 데이터가 없습니다.
                   </div>
                 )}
+              </div>
+
+              {/* 카테고리 필터 버튼 */}
+              <div className="flex flex-wrap gap-2">
+                {CATEGORY_LIST.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => handleCategoryClick(cat)}
+                    className={`transition-all rounded-full ${
+                      selectedCategory === cat
+                        ? "ring-2 ring-[#0064FF] ring-offset-1 scale-[1.02]"
+                        : "opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <AgendaTag type={cat} />
+                  </button>
+                ))}
               </div>
             </div>
 
