@@ -387,19 +387,43 @@ export default function MeetingSummaryScreen({
 
               {/* 카테고리 필터 버튼 */}
               <div className="flex flex-wrap gap-2">
-                {CATEGORY_LIST.map((cat) => (
-                  <button
-                    key={cat}
-                    onClick={() => handleCategoryClick(cat)}
-                    className={`transition-all rounded-full ${
-                      selectedCategory === cat
-                        ? "ring-2 ring-[#0064FF] ring-offset-1 scale-[1.02]"
-                        : "opacity-60 hover:opacity-100"
-                    }`}
-                  >
-                    <AgendaTag type={cat} />
-                  </button>
-                ))}
+                {CATEGORY_LIST.map((cat) => {
+                  const isActive = selectedCategory === cat;
+
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => handleCategoryClick(cat)}
+                      className={`
+                        relative rounded-full transition-all cursor-pointer
+                        focus:outline-none
+                        ${
+                          isActive
+                            ? "scale-110 drop-shadow-[0_8px_16px_rgba(37,99,235,0.35)]"
+                            : "opacity-30 hover:opacity-80 hover:scale-105 filter grayscale"
+                        }
+                      `}
+                    >
+                      {/* 선택된 경우: 강한 하이라이트 배경 + 파란 링 */}
+                      {isActive && (
+                        <div
+                          className="
+                            absolute inset-[-6px]
+                            rounded-full
+                            bg-white
+                            ring-2 ring-[#0064FF]
+                            ring-offset-2 ring-offset-[#F3F4F6]
+                          "
+                        />
+                      )}
+
+                      {/* 실제 태그 */}
+                      <div className="relative z-10">
+                        <AgendaTag type={cat} />
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -524,7 +548,7 @@ function TimelineItem({
       <p className="text-xs text-[#717182] mb-1.5 font-medium">{time}</p>
       <AgendaTag type={tag} />
       <p className="text-xs text-[#030213] mt-2 max-w-[100px] text-center leading-tight">
-        {label.length > 15 ? label.substring(0, 15) + "..." : label}
+        {label.length > 15 ? label.substring(0, 15) + "…" : label}
       </p>
     </div>
   );
