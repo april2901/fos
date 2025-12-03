@@ -1022,6 +1022,144 @@ export default function AgendaTrackerScreen({
     }
   };
 
+  // Decision 추가
+  const addDecision = (text: string) => {
+    if (!text.trim()) return;
+
+    const newDecision: ImportantItem = {
+      id: `d${Date.now()}`,
+      text: text.trim(),
+    };
+
+    setDecisions((prev) => [...prev, newDecision]);
+  };
+
+  // Action Item 추가
+  const addActionItem = (text: string) => {
+    if (!text.trim()) return;
+
+    const newActionItem: ImportantItem = {
+      id: `a${Date.now()}`,
+      text: text.trim(),
+    };
+
+    setActionItems((prev) => [...prev, newActionItem]);
+  };
+
+  // 노드 추가 (프로그래밍 방식)
+  const addNode = (
+    label: string,
+    category: Category,
+    summary: string,
+    transcript: string = "",
+    parentNodeId: number | null = null
+  ) => {
+    if (!label.trim()) return;
+
+    const newNodeId = ++nodeCounterRef.current;
+    const color = CATEGORY_COLORS[category];
+
+    // 부모 노드 결정
+    let actualParentId = parentNodeId;
+    let level = 0;
+
+    if (actualParentId === null) {
+      // 부모 지정 안 됨 - 선택된 노드 또는 루트 사용
+      const allNodes = nodes.get();
+      if (allNodes.length === 0) {
+        // 첫 노드면 루트로
+        level = 0;
+      } else {
+        actualParentId = selectedNodeRef.current || 1;
+        const parentNode = nodes.get(actualParentId);
+        if (parentNode) {
+          level = (parentNode.level !== undefined ? parentNode.level : 0) + 1;
+        } else {
+          level = 1;
+          actualParentId = 1;
+        }
+      }
+    } else {
+      // 부모 지정됨
+      const parentNode = nodes.get(actualParentId);
+      if (parentNode) {
+        level = (parentNode.level !== undefined ? parentNode.level : 0) + 1;
+      } else {
+        console.warn('Invalid parent node ID:', actualParentId);
+        return;
+      }
+    }
+
+    // vis-network에 노드 추가
+    nodes.add({
+      id: newNodeId,
+      label: label.length > 15 ? label.substring(0, 12) + '...' : label,
+      level: level,
+      fixed: { x: true, y: false },
+      color: {
+        background: color.background,
+        border: color.border,
+        highlight: {
+          background: color.highlightBackground,
+          border: color.highlightBorder,
+        },
+      },
+    });
+
+    // 엣지 추가 (루트가 아닐 때만)
+    if (actualParentId !== null) {
+      edges.add({ from: actualParentId, to: newNodeId });
+    }
+
+    // 타임스탬프 생성
+    const timestamp = new Date().toLocaleTimeString('ko-KR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    });
+
+    // 메타데이터 추가
+    setNodeMetadata((prev) => ({
+      ...prev,
+      [newNodeId]: {
+        id: newNodeId,
+        label: label.trim(),
+        category,
+        timestamp,
+        summary: summary.trim(),
+        transcript: transcript.trim(),
+      },
+    }));
+
+    // DB에 저장
+    saveNodeToDB(
+      newNodeId,
+      label.trim(),
+      category,
+      level,
+      transcript.trim(),
+      timestamp,
+      summary.trim()
+    );
+
+    if (actualParentId !== null) {
+      saveEdgeToDB(actualParentId, newNodeId);
+    }
+
+    // Physics 애니메이션
+    if (networkRef.current) {
+      networkRef.current.startSimulation();
+    }
+
+    // 노드 선택
+    selectedNodeRef.current = newNodeId;
+    networkRef.current?.selectNodes([newNodeId]);
+
+    setTimeout(() => syncMapDataToParent(), 100);
+
+    return newNodeId;
+  };
+
   const handleItemDragStart = (
     e: React.DragEvent,
     id: string,
@@ -1076,7 +1214,50 @@ export default function AgendaTrackerScreen({
   };
 
   return (
-    <div className="w-full min-h-screen bg-[#FAFBFC]">
+    <div className="w-full min-h-screen bg-[#FAFBFC] relative">
+      {/* 투명 버튼 그룹 (오른쪽 하단) */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 0,
+          right: 0,
+          display: 'flex',
+          gap: 0,
+          zIndex: 9999
+        }}
+      >
+        <button
+          onClick={() => console.log('🔘 투명 버튼 1 클릭됨')}
+          className="bg-red-500 opacity-10 hover:opacity-50 transition-opacity"
+          style={{ width: '32px', height: '32px', cursor: 'default' }}
+          title="Debug 1"
+        />
+        <button
+          onClick={() => console.log('🔘 투명 버튼 2 클릭됨')}
+          className="bg-blue-500 opacity-10 hover:opacity-50 transition-opacity"
+          style={{ width: '32px', height: '32px', cursor: 'default' }}
+          title="Debug 2"
+        />
+        <button
+          onClick={() => console.log('🔘 투명 버튼 3 클릭됨')}
+          className="bg-green-500 opacity-10 hover:opacity-50 transition-opacity"
+          style={{ width: '32px', height: '32px', cursor: 'default' }}
+          title="Debug 3"
+        />
+        <button
+          onClick={() => console.log('🔘 투명 버튼 4 클릭됨')}
+          className="bg-yellow-500 opacity-10 hover:opacity-50 transition-opacity"
+          style={{ width: '32px', height: '32px', cursor: 'default' }}
+          title="Debug 4"
+        />
+        <button
+          onClick={() => console.log('🔘 투명 버튼 5 클릭됨')}
+          className="bg-purple-500 opacity-10 hover:opacity-50 transition-opacity"
+          style={{ width: '32px', height: '32px', cursor: 'default' }}
+          title="Debug 5"
+        />
+      </div>
+
       <TopNavBar
         title="Agenda Map"
         onHomeClick={onHomeClick}
