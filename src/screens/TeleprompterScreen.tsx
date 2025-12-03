@@ -1122,27 +1122,25 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                   </div>
                   <div className={`h-12 px-4 rounded-lg border flex items-center justify-center gap-2 ${
                     isOverTime 
-                      ? 'bg-red-50 border-red-200' 
+                      ? 'border-red-200' 
                       : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)]'
                   }`}>
-                    <span className={`text-xl font-semibold tabular-nums ${
-                      isOverTime ? 'text-red-600' : 'text-[#030213]'
-                    }`}>
-                      {formatTimeMMSS(elapsedSeconds)}
-                    </span>
-                    <span className={`text-lg ${isOverTime ? 'text-red-400' : 'text-[#717182]'}`}>/</span>
-                    <span className={`text-lg tabular-nums ${isOverTime ? 'text-red-600' : 'text-[#717182]'}`}>
-                      {targetTimeSeconds > 0 ? formatTimeMMSS(targetTimeSeconds) : '--:--'}
-                    </span>
+                    {isOverTime ? (
+                      <span className="text-md font-semibold text-red-600">
+                        {formatTimeMMSS(elapsedSeconds - targetTimeSeconds)} 초과
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xl font-semibold tabular-nums text-[#030213]">
+                          {formatTimeMMSS(elapsedSeconds)}
+                        </span>
+                        <span className="text-lg text-[#717182]">/</span>
+                        <span className="text-lg tabular-nums text-[#717182]">
+                          {targetTimeSeconds > 0 ? formatTimeMMSS(targetTimeSeconds) : '--:--'}
+                        </span>
+                      </>
+                    )}
                   </div>
-                  {targetTimeSeconds > 0 && (
-                    <p className={`text-xs mt-1 ${isOverTime ? 'text-red-500 font-medium' : 'text-[#717182]'}`}>
-                      {isOverTime 
-                        ? `⚠️ 목표 시간을 ${formatTimeMMSS(elapsedSeconds - targetTimeSeconds)} 초과했습니다`
-                        : `남은 시간: ${formatTimeMMSS(targetTimeSeconds - elapsedSeconds)}`
-                      }
-                    </p>
-                  )}
                 </div>
 
                 {/* 발표 속도 - 주석 처리 */}
