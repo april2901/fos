@@ -1226,35 +1226,91 @@ export default function AgendaTrackerScreen({
           zIndex: 9999
         }}
       >
+        {/* 버튼 1: Root 노드 생성 */}
         <button
-          onClick={() => console.log('🔘 투명 버튼 1 클릭됨')}
-          className="bg-red-500 opacity-10 hover:opacity-50 transition-opacity"
+          onClick={() => {
+            console.log('🔘 투명 버튼 1 클릭됨');
+            addNode(
+              "AGENDA MAP",
+              "일반",
+              "Agenda Map (회의 모드)",
+              "자, 다음은 아젠다 맵 관련 논의를 시작해보겠습니다.",
+              null
+            );
+          }}
+          className="bg-red-500 opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
-          title="Debug 1"
+          title="Root 노드 생성"
         />
+
+        {/* 버튼 2: 디자인 노드 + 액션 아이템 */}
         <button
-          onClick={() => console.log('🔘 투명 버튼 2 클릭됨')}
-          className="bg-blue-500 opacity-10 hover:opacity-50 transition-opacity"
+          onClick={() => {
+            console.log('🔘 투명 버튼 2 클릭됨');
+            addNode(
+              "디자인 시안 제작",
+              "디자인",
+              "디자인 시안 요청",
+              "디자인 시안은 다은님이 다음주 까지 해주세요.",
+              1
+            );
+            addActionItem("@다은: AGENDA MAP 디자인 시안 제작(다음주 까지)");
+          }}
+          className="bg-blue-500 opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
-          title="Debug 2"
+          title="디자인 노드 + 액션 아이템"
         />
+
+        {/* 버튼 3: 아이디어 노드 (디자인 하위) */}
         <button
-          onClick={() => console.log('🔘 투명 버튼 3 클릭됨')}
-          className="bg-green-500 opacity-10 hover:opacity-50 transition-opacity"
+          onClick={() => {
+            console.log('🔘 투명 버튼 3 클릭됨');
+            addNode(
+              "BRANCH 그래프 디자인",
+              "아이디어",
+              "발화를 노드로 하는 branch 그래프 제안",
+              "Agenda map의 기본적인 구성은 발화를 노드로 하는 branch 그래프 형태로 하는 것이 어떨까요?",
+              2
+            );
+          }}
+          className="bg-green-500 opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
-          title="Debug 3"
+          title="아이디어 노드"
         />
+
+        {/* 버튼 4: 개발 노드 (Root 하위) */}
         <button
-          onClick={() => console.log('🔘 투명 버튼 4 클릭됨')}
-          className="bg-yellow-500 opacity-10 hover:opacity-50 transition-opacity"
+          onClick={() => {
+            console.log('🔘 투명 버튼 4 클릭됨');
+            addNode(
+              "개발 프레임워크 리서치 공유",
+              "개발",
+              "개발 프레임워크 리서치 결과 공유",
+              "저번 회의에서 요청주신 개발 프레임워크 리서치 결과 보고서 공유 드립니다.",
+              1
+            );
+          }}
+          className="bg-yellow-500 opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
-          title="Debug 4"
+          title="개발 노드"
         />
+
+        {/* 버튼 5: 개발 노드 (개발 하위) + 결정사항 */}
         <button
-          onClick={() => console.log('🔘 투명 버튼 5 클릭됨')}
-          className="bg-purple-500 opacity-10 hover:opacity-50 transition-opacity"
+          onClick={() => {
+            console.log('🔘 투명 버튼 5 클릭됨');
+            addNode(
+              "AI API Gemini로 결정",
+              "개발",
+              "Gemini API 사용 결정",
+              "성능과 비용을 종합적으로 고려했을 때, Gemini API를 쓰기로 결정했습니다.",
+              4
+            );
+            addDecision("API 선정: Gemini API 사용 결정");
+          }}
+          className="bg-purple-500 opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
-          title="Debug 5"
+          title="API 결정 노드 + 결정사항"
         />
       </div>
 
