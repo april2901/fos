@@ -389,6 +389,61 @@ export default function AgendaTrackerScreen({
     }
   };
 
+  // 현재 세션의 모든 노드와 엣지 삭제
+  const clearAllSessionData = async () => {
+    const confirmed = window.confirm('정말로 모든 노드와 엣지를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.');
+
+    if (!confirmed) return;
+
+    try {
+      // 사용자 정보 가져오기
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        alert('로그인이 필요합니다.');
+        return;
+      }
+
+      // 세션 찾기
+      const { data: session, error: sessionError } = await supabase
+        .schema('fos')
+        .from('sessions')
+        .select('session_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionError || !session) {
+        alert('세션을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 노드와 엣지 삭제
+      const [nodesResult, edgesResult] = await Promise.all([
+        supabase.schema('fos').from('nodes').delete().eq('session_id', session.session_id),
+        supabase.schema('fos').from('edges').delete().eq('session_id', session.session_id)
+      ]);
+
+      if (nodesResult.error || edgesResult.error) {
+        console.error('삭제 실패:', nodesResult.error || edgesResult.error);
+        alert('삭제 중 오류가 발생했습니다.');
+        return;
+      }
+
+      // 로컬 state 초기화
+      nodes.clear();
+      edges.clear();
+      setNodeMetadata({});
+      nodeCounterRef.current = 0;
+      selectedNodeRef.current = null;
+      setSelectedNodeId(null);
+
+      console.log('모든 노드와 엣지 삭제 완료');
+      alert('모든 데이터가 삭제되었습니다.');
+    } catch (err) {
+      console.error('삭제 예외:', err);
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   const analyzeMeetingContent = async (transcript: string) => {
     console.log(
       "[DEBUG] analyzeMeetingContent called with:",
@@ -553,6 +608,11 @@ export default function AgendaTrackerScreen({
       result.summary
     );
     saveEdgeToDB(parentId, newNodeId);
+
+    // Physics 출렁임 효과 트리거
+    if (networkRef.current) {
+      networkRef.current.startSimulation();
+    }
 
     setTimeout(() => syncMapDataToParent(), 100);
   };
@@ -896,6 +956,11 @@ export default function AgendaTrackerScreen({
     setNewNodeText("");
     setSelectedNodeType("일반");
 
+    // Physics 출렁임 효과 트리거
+    if (networkRef.current) {
+      networkRef.current.startSimulation();
+    }
+
     setTimeout(() => syncMapDataToParent(), 100);
   };
 
@@ -1063,6 +1128,14 @@ export default function AgendaTrackerScreen({
                   className="h-9 px-4 border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF] rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
                 >
                   회의 종료
+                </Button>
+                <Button
+                  onClick={clearAllSessionData}
+                  variant="outline"
+                  className="h-8 px-3 border-red-300 text-red-500 hover:bg-red-50 rounded-lg text-xs transition-transform hover:scale-[1.02] active:scale-[0.98]"
+                  title="모든 노드와 엣지 삭제"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
