@@ -204,43 +204,17 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
         return;
       }
 
-      // 기존 세션이 있는지 확인
-      const { data: existingSession, error: fetchError } = await supabase
+      // upsert 사용: user_id가 unique constraint라면 자동으로 UPDATE, 아니면 INSERT
+      const { error } = await supabase
         .schema('fos')
         .from('sessions')
-        .select('session_id')
-        .eq('user_id', user.id)
-        .single();
-
-      let error;
-
-      if (existingSession) {
-        // 기존 세션 UPDATE
-        const { error: updateError } = await supabase
-          .schema('fos')
-          .from('sessions')
-          .update({
-            script_content: script,
-            title: presentationTitle,
-          })
-          .eq('session_id', existingSession.session_id);
-
-        error = updateError;
-        console.log('스크립트 업데이트 성공');
-      } else {
-        // 새 세션 INSERT
-        const { error: insertError } = await supabase
-          .schema('fos')
-          .from('sessions')
-          .insert({
-            user_id: user.id,
-            script_content: script,
-            title: presentationTitle,
-          });
-
-        error = insertError;
-        console.log('스크립트 생성 성공');
-      }
+        .upsert({
+          user_id: user.id,
+          script_content: script,
+          title: presentationTitle,
+        }, {
+          onConflict: 'user_id', // user_id가 중복되면 UPDATE
+        });
 
       if (error) {
         console.error('스크립트 저장 실패:', error);
@@ -248,6 +222,8 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
         setIsSaving(false);
         return;
       }
+
+      console.log('스크립트 저장 성공');
 
       // 저장 성공 후 다음 화면으로
       onComplete(presentationTitle, script);

@@ -414,10 +414,10 @@ export default function AgendaTrackerScreen({
       prev.map((entry) =>
         entry.nodeId == null
           ? {
-              ...entry,
-              type: result.category,
-              nodeId: newNodeId,
-            }
+            ...entry,
+            type: result.category,
+            nodeId: newNodeId,
+          }
           : entry
       )
     );
@@ -506,7 +506,7 @@ export default function AgendaTrackerScreen({
       if (isRecording) {
         try {
           recognition.start();
-        } catch (e) {}
+        } catch (e) { }
       }
     };
 
@@ -970,11 +970,10 @@ export default function AgendaTrackerScreen({
                 <Button
                   onClick={toggleRecording}
                   variant={isRecording ? "destructive" : "outline"}
-                  className={`h-9 px-4 rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${
-                    isRecording
+                  className={`h-9 px-4 rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${isRecording
                       ? "bg-red-500 hover:bg-red-600 text-white"
                       : "border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF]"
-                  }`}
+                    }`}
                 >
                   {isRecording ? (
                     <>
@@ -1102,11 +1101,10 @@ export default function AgendaTrackerScreen({
                     ref={(el) => {
                       sttEntryRefs.current[entry.id] = el;
                     }}
-                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${
-                      selectedNodeId === entry.nodeId
+                    className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
                         ? "bg-blue-100 border-blue-300"
                         : "border-transparent"
-                    }`}
+                      }`}
                   >
                     <span className="text-[#717182] text-xs mr-2">
                       {entry.timestamp}
@@ -1136,11 +1134,10 @@ export default function AgendaTrackerScreen({
                       <button
                         key={type}
                         onClick={() => setSelectedNodeType(type)}
-                        className={`transition-all ${
-                          selectedNodeType === type
+                        className={`transition-all ${selectedNodeType === type
                             ? categoryStyles[type] + " border"
                             : "opacity-50 hover:opacity-100"
-                        }`}
+                          }`}
                       >
                         <AgendaTag type={type} asButton={false} />
                       </button>
@@ -1185,14 +1182,13 @@ export default function AgendaTrackerScreen({
                     onDrop={(e) =>
                       handleItemDrop(e, item.id, "decision")
                     }
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
-                      dragOverItem === item.id
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
                         ? "border-[#0064FF] shadow-lg"
                         : "border-[rgba(0,0,0,0.1)]"
-                    } hover:shadow-md hover:border-[#0064FF]`}
+                      } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
-                    editingItem?.type === "decision" ? (
+                      editingItem?.type === "decision" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
@@ -1261,14 +1257,13 @@ export default function AgendaTrackerScreen({
                     onDrop={(e) =>
                       handleItemDrop(e, item.id, "action")
                     }
-                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${
-                      dragOverItem === item.id
+                    className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
                         ? "border-[#0064FF] shadow-lg"
                         : "border-[rgba(0,0,0,0.1)]"
-                    } hover:shadow-md hover:border-[#0064FF]`}
+                      } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
-                    editingItem?.type === "action" ? (
+                      editingItem?.type === "action" ? (
                       <div className="flex items-center gap-2">
                         <input
                           type="text"
