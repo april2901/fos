@@ -406,10 +406,10 @@ export default function AgendaTrackerScreen({
     }
 
     const now = Date.now();
-    if (now - lastAnalysisTimeRef.current < 5000) {
+    if (now - lastAnalysisTimeRef.current < 2000) {
       console.log(
         "[DEBUG] Skipped: too soon, wait",
-        5000 - (now - lastAnalysisTimeRef.current),
+        2000 - (now - lastAnalysisTimeRef.current),
         "ms"
       );
       return;
@@ -617,7 +617,7 @@ export default function AgendaTrackerScreen({
         );
 
         const buffer = transcriptBufferRef.current;
-        if (finalCountRef.current >= 3 || buffer.length >= 100) {
+        if (finalCountRef.current >= 1 || buffer.length >= 50) {
           console.log("[DEBUG] Triggering analysis...");
           analyzeMeetingContent(buffer.trim());
           finalCountRef.current = 0;
