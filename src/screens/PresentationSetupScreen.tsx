@@ -8,7 +8,7 @@ import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 interface PresentationSetupScreenProps {
-  onComplete: (title: string, script: string) => void;
+  onComplete: (title: string, script: string, targetTimeSeconds: number) => void; // targetTimeSeconds 추가
   onHomeClick: () => void;
   onBack: () => void;
 }
@@ -108,7 +108,10 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
     const parts = input.split(':').map(p => parseInt(p) || 0);
 
-    if (parts.length === 2) {
+    if (parts.length === 1) {
+      // If user enters just a number (e.g. "10"), treat as minutes
+      return parts[0] * 60;
+    } else if (parts.length === 2) {
       // MM:SS
       return parts[0] * 60 + parts[1];
     } else if (parts.length === 3) {
@@ -225,8 +228,8 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
       console.log('스크립트 저장 성공');
 
-      // 저장 성공 후 다음 화면으로
-      onComplete(presentationTitle, script);
+      // 저장 성공 후 다음 화면으로 (targetSeconds도 함께 전달)
+      onComplete(presentationTitle, script, targetSeconds);
     } catch (err) {
       console.error('예외 발생:', err);
       alert('오류가 발생했습니다.');
@@ -364,8 +367,8 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                       <p className={`text-xs ${unitDifference > 0 ? 'text-amber-700' : 'text-blue-700'
                         }`}>
                         {unitDifference > 0
-                          ? `스크립트를 약 ${charEquivalent}글자 분량 줄이거나 발표 속도를 높이세요.`
-                          : `스크립트를 약 ${charEquivalent}글자 분량 늘리거나 발표 속도를 낮추세요.`
+                          ? `스크립트를 약 ${charEquivalent}글자 가량 줄이거나 발표 속도를 높이세요.`
+                          : `스크립트를 약 ${charEquivalent}글자 가량 늘리거나 발표 속도를 낮추세요.`
                         }
                       </p>
                     </div>
