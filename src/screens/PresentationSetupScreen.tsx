@@ -8,7 +8,7 @@ import { useState, useMemo, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 interface PresentationSetupScreenProps {
-  onComplete: (title: string, script: string) => void;
+  onComplete: (title: string, script: string, targetTimeSeconds: number) => void; // targetTimeSeconds 추가
   onHomeClick: () => void;
   onBack: () => void;
 }
@@ -225,8 +225,8 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
       console.log('스크립트 저장 성공');
 
-      // 저장 성공 후 다음 화면으로
-      onComplete(presentationTitle, script);
+      // 저장 성공 후 다음 화면으로 (targetSeconds도 함께 전달)
+      onComplete(presentationTitle, script, targetSeconds);
     } catch (err) {
       console.error('예외 발생:', err);
       alert('오류가 발생했습니다.');
