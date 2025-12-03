@@ -1114,61 +1114,44 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
                   </div>
                 )}
 
-                {/* 발표 시간 (목표 시간 대비 현재 소요 시간) */}
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Clock className="size-4 text-[#717182]" />
-                    <p className="text-xs font-medium text-[#717182]">발표 시간</p>
-                  </div>
-                  <div className={`h-12 px-4 rounded-lg border flex items-center justify-center gap-2 ${
-                    isOverTime 
-                      ? 'border-red-200' 
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)]'
-                  }`}>
-                    {isOverTime ? (
-                      <span className="text-md font-semibold text-red-600">
-                        {formatTimeMMSS(elapsedSeconds - targetTimeSeconds)} 초과
+                {/* 발표 시간 정보 */}
+                <div className="flex gap-3">
+                  {/* 현재 발표 시간 */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="size-4 text-[#717182]" />
+                      <p className="text-xs font-medium text-[#717182]">현재 발표 시간</p>
+                    </div>
+                    <div className="h-12 px-4 rounded-lg bg-[#F4F6FF] border border-[rgba(0,0,0,0.06)] flex items-center justify-center">
+                      <span className="text-xl font-semibold tabular-nums text-[#030213]">
+                        {formatTimeMMSS(elapsedSeconds)}
                       </span>
-                    ) : (
-                      <>
-                        <span className="text-xl font-semibold tabular-nums text-[#030213]">
-                          {formatTimeMMSS(elapsedSeconds)}
-                        </span>
-                        <span className="text-lg text-[#717182]">/</span>
-                        <span className="text-lg tabular-nums text-[#717182]">
-                          {targetTimeSeconds > 0 ? formatTimeMMSS(targetTimeSeconds) : '--:--'}
-                        </span>
-                      </>
-                    )}
+                    </div>
                   </div>
-                </div>
 
-                {/* 발표 속도 - 주석 처리 */}
-                {/*
-                <div>
-                  <p className="text-xs text-[#717182] mb-2 font-medium">발표 속도</p>
-                  <div className="flex gap-2">
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "느림"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      느림
+                  {/* 잔여 시간 */}
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Clock className="size-4 text-[#717182]" />
+                      <p className="text-xs font-medium text-[#717182]">잔여 시간</p>
                     </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "적정"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      적정
-                    </div>
-                    <div className={`flex-1 h-9 rounded-lg border flex items-center justify-center text-xs transition-all ${speed === "빠름"
-                      ? 'bg-[#0064FF] text-white font-semibold shadow-sm border-[#0064FF]'
-                      : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)] text-[#717182]'
-                      }`}>
-                      빠름
+                    <div className={`h-12 px-4 rounded-lg border flex items-center justify-center ${
+                      isOverTime 
+                        ? 'bg-red-50 border-red-200' 
+                        : 'bg-[#F4F6FF] border-[rgba(0,0,0,0.06)]'
+                    }`}>
+                      {isOverTime ? (
+                        <span className="text-md font-semibold text-red-600">
+                          +{formatTimeMMSS(elapsedSeconds - targetTimeSeconds)}
+                        </span>
+                      ) : (
+                        <span className="text-xl font-semibold tabular-nums text-[#030213]">
+                          {targetTimeSeconds > 0 ? formatTimeMMSS(Math.max(0, targetTimeSeconds - elapsedSeconds)) : '--:--'}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
-                */}
               </div>
             </div>
 
