@@ -108,7 +108,10 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
 
     const parts = input.split(':').map(p => parseInt(p) || 0);
 
-    if (parts.length === 2) {
+    if (parts.length === 1) {
+      // If user enters just a number (e.g. "10"), treat as minutes
+      return parts[0] * 60;
+    } else if (parts.length === 2) {
       // MM:SS
       return parts[0] * 60 + parts[1];
     } else if (parts.length === 3) {
@@ -364,8 +367,8 @@ export default function PresentationSetupScreen({ onComplete, onHomeClick, onBac
                       <p className={`text-xs ${unitDifference > 0 ? 'text-amber-700' : 'text-blue-700'
                         }`}>
                         {unitDifference > 0
-                          ? `스크립트를 약 ${charEquivalent}글자 분량 줄이거나 발표 속도를 높이세요.`
-                          : `스크립트를 약 ${charEquivalent}글자 분량 늘리거나 발표 속도를 낮추세요.`
+                          ? `스크립트를 약 ${charEquivalent}글자 가량 줄이거나 발표 속도를 높이세요.`
+                          : `스크립트를 약 ${charEquivalent}글자 가량 늘리거나 발표 속도를 낮추세요.`
                         }
                       </p>
                     </div>
