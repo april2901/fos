@@ -6,6 +6,7 @@ import { Plus, Info, X, Trash2, GripVertical, Check } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { AgendaItem, AgendaMapData } from "../App";
 import { DataSet, Network } from "vis-network/standalone";
+import { supabase } from "../lib/supabaseClient";
 
 interface AgendaTrackerScreenProps {
   hasPresentation: boolean;
@@ -133,61 +134,11 @@ export default function AgendaTrackerScreen({
 
   const [nodeMetadata, setNodeMetadata] = useState<
     Record<number, NodeMetadata>
-  >({
-    1: {
-      id: 1,
-      label: "Focus on Speaking 서비스 기획안",
-      category: "아이디어",
-      transcript:
-        "오늘 회의에서는 Focus on Speaking 서비스 기획안을 논의하겠습니다.",
-      timestamp: "10:04",
-      summary: "서비스 전반 기획안 소개",
-    },
-    2: {
-      id: 2,
-      label: "개발 기술 프레임워크 선정",
-      category: "디자인",
-      transcript:
-        "개발 일정은 어떻게 되나요? A안으로 진행하도록 하겠습니다.",
-      timestamp: "10:06",
-      summary: "프레임워크 및 기술 스택 결정",
-    },
-    3: {
-      id: 3,
-      label: "실시간 STT 구현",
-      category: "아이디어",
-      transcript:
-        "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.",
-      timestamp: "10:12",
-      summary: "STT 기반 텔레프롬프터 아이디어",
-    },
-    4: {
-      id: 4,
-      label: "디자인 시안 검토",
-      category: "디자인",
-      transcript: "Figma에서 작업한 시안을 공유합니다.",
-      timestamp: "10:15",
-      summary: "디자인 시스템 및 UI 검토",
-    },
-    5: {
-      id: 5,
-      label: "리서치 결과 공유",
-      category: "리서치",
-      transcript: "경쟁 서비스 분석 결과를 공유합니다.",
-      timestamp: "10:18",
-      summary: "경쟁사 분석 결과",
-    },
-  });
+  >({});
 
-  const [decisions, setDecisions] = useState<ImportantItem[]>([
-    { id: "d1", text: "결정사항 1 – A안으로 진행" },
-    { id: "d2", text: "결정사항 2 – 일정 1주 연장" },
-  ]);
+  const [decisions, setDecisions] = useState<ImportantItem[]>([]);
 
-  const [actionItems, setActionItems] = useState<ImportantItem[]>([
-    { id: "a1", text: "@민수: 경쟁사 리서치 정리" },
-    { id: "a2", text: "@지영: 다음 주까지 프로토타입 공유" },
-  ]);
+  const [actionItems, setActionItems] = useState<ImportantItem[]>([]);
 
   const [editingItem, setEditingItem] = useState<{
     id: string;
@@ -208,36 +159,109 @@ export default function AgendaTrackerScreen({
   const sttLogContainerRef = useRef<HTMLDivElement | null>(null);
   const sttEntriesRef = useRef<STTEntry[]>([]);
 
-  const [sttEntries, setSTTEntries] = useState<STTEntry[]>([
-    {
-      id: "s1",
-      text: "개발 일정은 어떻게 되나요?",
-      type: "Question",
-      timestamp: "10:06",
-      nodeId: 2,
-    },
-    {
-      id: "s2",
-      text: "A안으로 진행하도록 하겠습니다.",
-      type: "Decision",
-      timestamp: "10:09",
-      nodeId: 2,
-    },
-    {
-      id: "s3",
-      text: "STT를 활용한 실시간 스크립트 매칭 기능을 구현하면 좋겠습니다.",
-      type: "Idea",
-      timestamp: "10:12",
-      nodeId: 3,
-    },
-    {
-      id: "s4",
-      text: "Figma에서 작업한 시안을 공유합니다.",
-      type: "General",
-      timestamp: "10:15",
-      nodeId: 4,
-    },
-  ]);
+  const [sttEntries, setSTTEntries] = useState<STTEntry[]>([]);
+
+  // DB에서 노드와 엣지 불러오기
+  const fetchNodesFromDB = async () => {
+    try {
+      // 현재 로그인한 사용자 정보 가져오기
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        console.log('로그인하지 않음 - 기본 노드 사용');
+        return;
+      }
+
+      // 사용자의 세션 찾기
+      const { data: session, error: sessionError } = await supabase
+        .schema('fos')
+        .from('sessions')
+        .select('session_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionError || !session) {
+        console.log('저장된 세션 없음 - 기본 노드 사용');
+        return;
+      }
+
+      // 노드 불러오기
+      const { data: dbNodes, error: nodesError } = await supabase
+        .schema('fos')
+        .from('nodes')
+        .select('*')
+        .eq('session_id', session.session_id)
+        .order('node_id');
+
+      // 엣지 불러오기
+      const { data: dbEdges, error: edgesError } = await supabase
+        .schema('fos')
+        .from('edges')
+        .select('*')
+        .eq('session_id', session.session_id);
+
+      if (nodesError || edgesError) {
+        console.error('노드/엣지 불러오기 실패:', nodesError || edgesError);
+        return;
+      }
+
+      if (dbNodes && dbNodes.length > 0) {
+        console.log('DB에서 노드 불러오기 성공:', dbNodes.length, '개');
+
+        // 노드 메타데이터 설정
+        const metadata: Record<number, NodeMetadata> = {};
+        dbNodes.forEach((node: any) => {
+          metadata[node.node_id] = {
+            id: node.node_id,
+            label: node.label,
+            category: node.category as Category,
+            transcript: node.transcript || '',
+            timestamp: node.timestamp || '',
+            summary: node.summary || '',
+          };
+        });
+        setNodeMetadata(metadata);
+
+        // vis-network에 노드 추가
+        const visNodes = dbNodes.map((node: any) => ({
+          id: node.node_id,
+          label: node.label.length > 15 ? node.label.substring(0, 12) + '...' : node.label,
+          level: node.level || 0,
+          fixed: { x: true, y: false },
+          color: {
+            background: CATEGORY_COLORS[node.category as Category].background,
+            border: CATEGORY_COLORS[node.category as Category].border,
+            highlight: {
+              background: CATEGORY_COLORS[node.category as Category].highlightBackground,
+              border: CATEGORY_COLORS[node.category as Category].highlightBorder,
+            },
+          },
+        }));
+
+        nodes.clear();
+        nodes.add(visNodes);
+
+        // 노드 카운터 업데이트
+        const maxNodeId = Math.max(...dbNodes.map((n: any) => n.node_id));
+        nodeCounterRef.current = maxNodeId;
+      }
+
+      if (dbEdges && dbEdges.length > 0) {
+        console.log('DB에서 엣지 불러오기 성공:', dbEdges.length, '개');
+
+        const visEdges = dbEdges.map((edge: any) => ({
+          from: edge.from_node_id,
+          to: edge.to_node_id,
+        }));
+
+        edges.clear();
+        edges.add(visEdges);
+      }
+
+    } catch (err) {
+      console.error('DB 불러오기 예외:', err);
+    }
+  };
 
   // 최신 STT 엔트리 목록을 ref에 동기화
   useEffect(() => {
@@ -270,6 +294,99 @@ export default function AgendaTrackerScreen({
 
   const getExistingTopics = (): string[] => {
     return Object.values(nodeMetadata).map((meta) => meta.label);
+  };
+
+  // 노드를 DB에 저장
+  const saveNodeToDB = async (
+    nodeId: number,
+    label: string,
+    category: Category,
+    level: number,
+    transcript: string,
+    timestamp: string,
+    summary: string
+  ) => {
+    try {
+      // 사용자 정보 가져오기
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        console.log('로그인 필요 - DB 저장 스킵');
+        return;
+      }
+
+      // 세션 찾기
+      const { data: session, error: sessionError } = await supabase
+        .schema('fos')
+        .from('sessions')
+        .select('session_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionError || !session) {
+        console.log('세션 없음 - DB 저장 스킵');
+        return;
+      }
+
+      // 노드 저장
+      const { error } = await supabase
+        .schema('fos')
+        .from('nodes')
+        .insert({
+          session_id: session.session_id,
+          node_id: nodeId,
+          label,
+          category,
+          level,
+          transcript,
+          timestamp,
+          summary,
+        });
+
+      if (error) {
+        console.error('노드 DB 저장 실패:', error);
+      } else {
+        console.log('노드 DB 저장 성공:', nodeId);
+      }
+    } catch (err) {
+      console.error('노드 저장 예외:', err);
+    }
+  };
+
+  // 엣지를 DB에 저장
+  const saveEdgeToDB = async (fromNodeId: number, toNodeId: number) => {
+    try {
+      // 사용자 정보 가져오기
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) return;
+
+      // 세션 찾기
+      const { data: session, error: sessionError } = await supabase
+        .schema('fos')
+        .from('sessions')
+        .select('session_id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (sessionError || !session) return;
+
+      // 엣지 저장
+      const { error } = await supabase
+        .schema('fos')
+        .from('edges')
+        .insert({
+          session_id: session.session_id,
+          from_node_id: fromNodeId,
+          to_node_id: toNodeId,
+        });
+
+      if (error) {
+        console.error('엣지 DB 저장 실패:', error);
+      } else {
+        console.log('엣지 DB 저장 성공:', fromNodeId, '->', toNodeId);
+      }
+    } catch (err) {
+      console.error('엣지 저장 예외:', err);
+    }
   };
 
   const analyzeMeetingContent = async (transcript: string) => {
@@ -425,6 +542,18 @@ export default function AgendaTrackerScreen({
     selectedNodeRef.current = newNodeId;
     networkRef.current?.selectNodes([newNodeId]);
 
+    // DB에 노드와 엣지 저장
+    saveNodeToDB(
+      newNodeId,
+      result.keyword,
+      result.category,
+      parentLevel + 1,
+      transcript,
+      newTimestamp,
+      result.summary
+    );
+    saveEdgeToDB(parentId, newNodeId);
+
     setTimeout(() => syncMapDataToParent(), 100);
   };
 
@@ -549,214 +678,138 @@ export default function AgendaTrackerScreen({
   }, []);
 
   useEffect(() => {
-    if (networkRef.current || !containerRef.current) return;
+    const initializeNetwork = async () => {
+      if (networkRef.current || !containerRef.current) return;
 
-    nodes.add([
-      {
-        id: 1,
-        level: 0,
-        fixed: { x: true, y: false },
-        label: "Focus on Speaking\n서비스 기획안",
-        color: {
-          background: CATEGORY_COLORS["아이디어"].background,
-          border: CATEGORY_COLORS["아이디어"].border,
-          highlight: {
-            background:
-              CATEGORY_COLORS["아이디어"].highlightBackground,
-            border: CATEGORY_COLORS["아이디어"].highlightBorder,
-          },
-        },
-      },
-      {
-        id: 2,
-        label: "개발 기술\n프레임워크 선정",
-        color: {
-          background: CATEGORY_COLORS["디자인"].background,
-          border: CATEGORY_COLORS["디자인"].border,
-          highlight: {
-            background:
-              CATEGORY_COLORS["디자인"].highlightBackground,
-            border: CATEGORY_COLORS["디자인"].highlightBorder,
-          },
-        },
-      },
-      {
-        id: 3,
-        level: 1,
-        fixed: { x: true, y: false },
-        label: "실시간 STT 구현",
-        color: {
-          background: CATEGORY_COLORS["아이디어"].background,
-          border: CATEGORY_COLORS["아이디어"].border,
-          highlight: {
-            background:
-              CATEGORY_COLORS["아이디어"].highlightBackground,
-            border: CATEGORY_COLORS["아이디어"].highlightBorder,
-          },
-        },
-      },
-      {
-        id: 4,
-        level: 2,
-        fixed: { x: true, y: false },
-        label: "디자인 시안 검토",
-        color: {
-          background: CATEGORY_COLORS["디자인"].background,
-          border: CATEGORY_COLORS["디자인"].border,
-          highlight: {
-            background:
-              CATEGORY_COLORS["디자인"].highlightBackground,
-            border: CATEGORY_COLORS["디자인"].highlightBorder,
-          },
-        },
-      },
-      {
-        id: 5,
-        level: 2,
-        fixed: { x: true, y: false },
-        label: "리서치 결과 공유",
-        color: {
-          background: CATEGORY_COLORS["리서치"].background,
-          border: CATEGORY_COLORS["리서치"].border,
-          highlight: {
-            background:
-              CATEGORY_COLORS["리서치"].highlightBackground,
-            border: CATEGORY_COLORS["리서치"].highlightBorder,
-          },
-        },
-      },
-    ]);
+      // DB에서 노드 불러오기 시도
+      await fetchNodesFromDB();
 
-    edges.add([
-      { from: 1, to: 2 },
-      { from: 1, to: 3 },
-      { from: 2, to: 4 },
-      { from: 2, to: 5 },
-    ]);
-
-    nodes.update({
-      id: 2,
-      level: 1,
-      fixed: { x: true, y: false },
-    });
-
-    const options = {
-      nodes: {
-        shape: "box",
-        shapeProperties: { borderRadius: 12 },
-        margin: { top: 12, right: 12, bottom: 12, left: 12 },
-        font: {
-          size: 14,
-          multi: true,
-          color: "#030213",
-          face: "Inter, Pretendard, system-ui, sans-serif",
-        },
-        borderWidth: 2,
-        shadow: {
-          enabled: true,
-          color: "rgba(0,0,0,0.15)",
-          size: 10,
-          x: 0,
-          y: 2,
-        },
-      },
-      edges: {
-        arrows: "to",
-        smooth: {
-          enabled: true,
-          type: "cubicBezier",
-          forceDirection: "horizontal",
-          roundness: 0.4,
-        },
-        color: { color: "#C8D0E0", highlight: "#0064FF" },
-        width: 2,
-      },
-      layout: {
-        hierarchical: {
-          enabled: true,
-          direction: "LR",
-          sortMethod: "directed",
-          levelSeparation: 250,
-          nodeSpacing: 120,
-        },
-      },
-      physics: {
-        enabled: true,
-        hierarchicalRepulsion: {
-          centralGravity: 0.0,
-          springLength: 150,
-          springConstant: 0.01,
-          nodeDistance: 150,
-          damping: 0.09,
-        },
-        solver: "hierarchicalRepulsion",
-      },
-      interaction: {
-        dragView: true,
-        zoomView: true,
-        dragNodes: true,
-        hover: true,
-      },
-    };
-
-    networkRef.current = new Network(
-      containerRef.current,
-      { nodes, edges },
-      options
-    );
-
-    networkRef.current.on("selectNode", (params) => {
-      const nodeId = params.nodes[0];
-      selectedNodeRef.current = nodeId;
-      setSelectedNodeId(nodeId);
-
-      if (networkRef.current && containerRef.current) {
-        const positions = networkRef.current.getPositions([nodeId]);
-        const canvasPos =
-          networkRef.current.canvasToDOM(positions[nodeId]);
-        const containerRect =
-          containerRef.current.getBoundingClientRect();
-
-        setPopoverPosition({
-          x: canvasPos.x - containerRect.left + 20,
-          y: canvasPos.y - containerRect.top,
-        });
+      // DB에서 노드를 불러오지 못한 경우, 빈 상태로 시작
+      // 사용자가 직접 노드를 추가하거나 STT로 생성할 수 있음
+      if (nodes.length === 0) {
+        console.log('빈 노드 맵으로 시작');
       }
 
-      const matchingEntry = sttEntriesRef.current.find(
-        (entry) => entry.nodeId === nodeId
+      const options = {
+        nodes: {
+          shape: "box",
+          shapeProperties: { borderRadius: 12 },
+          margin: { top: 12, right: 12, bottom: 12, left: 12 },
+          font: {
+            size: 14,
+            multi: true,
+            color: "#030213",
+            face: "Inter, Pretendard, system-ui, sans-serif",
+          },
+          borderWidth: 2,
+          shadow: {
+            enabled: true,
+            color: "rgba(0,0,0,0.15)",
+            size: 10,
+            x: 0,
+            y: 2,
+          },
+        },
+        edges: {
+          arrows: "to",
+          smooth: {
+            enabled: true,
+            type: "cubicBezier",
+            forceDirection: "horizontal",
+            roundness: 0.4,
+          },
+          color: { color: "#C8D0E0", highlight: "#0064FF" },
+          width: 2,
+        },
+        layout: {
+          hierarchical: {
+            enabled: true,
+            direction: "LR",
+            sortMethod: "directed",
+            levelSeparation: 250,
+            nodeSpacing: 120,
+          },
+        },
+        physics: {
+          enabled: true,
+          hierarchicalRepulsion: {
+            centralGravity: 0.0,
+            springLength: 150,
+            springConstant: 0.01,
+            nodeDistance: 150,
+            damping: 0.09,
+          },
+          solver: "hierarchicalRepulsion",
+        },
+        interaction: {
+          dragView: true,
+          zoomView: true,
+          dragNodes: true,
+          hover: true,
+        },
+      };
+
+      networkRef.current = new Network(
+        containerRef.current,
+        { nodes, edges },
+        options
       );
-      if (matchingEntry && sttEntryRefs.current[matchingEntry.id]) {
-        sttEntryRefs.current[matchingEntry.id]?.scrollIntoView({
-          behavior: "smooth",
-          block: "nearest",
-        });
-      }
-    });
 
-    networkRef.current.on("deselectNode", () => {
-      selectedNodeRef.current = null;
-      setSelectedNodeId(null);
-      setPopoverPosition(null);
-    });
+      networkRef.current.on("selectNode", (params) => {
+        const nodeId = params.nodes[0];
+        selectedNodeRef.current = nodeId;
+        setSelectedNodeId(nodeId);
 
-    networkRef.current.on("click", (params) => {
-      if (params.nodes.length === 0) {
+        if (networkRef.current && containerRef.current) {
+          const positions = networkRef.current.getPositions([nodeId]);
+          const canvasPos =
+            networkRef.current.canvasToDOM(positions[nodeId]);
+          const containerRect =
+            containerRef.current.getBoundingClientRect();
+
+          setPopoverPosition({
+            x: canvasPos.x - containerRect.left + 20,
+            y: canvasPos.y - containerRect.top,
+          });
+        }
+
+        const matchingEntry = sttEntriesRef.current.find(
+          (entry) => entry.nodeId === nodeId
+        );
+        if (matchingEntry && sttEntryRefs.current[matchingEntry.id]) {
+          sttEntryRefs.current[matchingEntry.id]?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          });
+        }
+      });
+
+      networkRef.current.on("deselectNode", () => {
         selectedNodeRef.current = null;
         setSelectedNodeId(null);
         setPopoverPosition(null);
-        networkRef.current?.unselectAll();
-      }
-    });
+      });
 
-    setTimeout(() => syncMapDataToParent(), 500);
+      networkRef.current.on("click", (params) => {
+        if (params.nodes.length === 0) {
+          selectedNodeRef.current = null;
+          setSelectedNodeId(null);
+          setPopoverPosition(null);
+          networkRef.current?.unselectAll();
+        }
+      });
 
-    return () => {
-      if (networkRef.current) {
-        networkRef.current.destroy();
-        networkRef.current = null;
-      }
+      setTimeout(() => syncMapDataToParent(), 500);
+
+      return () => {
+        if (networkRef.current) {
+          networkRef.current.destroy();
+          networkRef.current = null;
+        }
+      };
     };
+
+    initializeNetwork();
   }, []);
 
   useEffect(() => {
@@ -827,6 +880,18 @@ export default function AgendaTrackerScreen({
         transcript: "",
       },
     }));
+
+    // DB에 노드와 엣지 저장
+    saveNodeToDB(
+      newNodeId,
+      newNodeText,
+      selectedNodeType,
+      parentLevel + 1,
+      "",
+      newTimestamp,
+      newNodeText
+    );
+    saveEdgeToDB(parentId, newNodeId);
 
     setNewNodeText("");
     setSelectedNodeType("일반");
@@ -971,8 +1036,8 @@ export default function AgendaTrackerScreen({
                   onClick={toggleRecording}
                   variant={isRecording ? "destructive" : "outline"}
                   className={`h-9 px-4 rounded-lg text-sm transition-transform hover:scale-[1.02] active:scale-[0.98] ${isRecording
-                      ? "bg-red-500 hover:bg-red-600 text-white"
-                      : "border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF]"
+                    ? "bg-red-500 hover:bg-red-600 text-white"
+                    : "border-[#0064FF] text-[#0064FF] hover:bg-[#F0F6FF]"
                     }`}
                 >
                   {isRecording ? (
@@ -1102,8 +1167,8 @@ export default function AgendaTrackerScreen({
                       sttEntryRefs.current[entry.id] = el;
                     }}
                     className={`text-[#030213] leading-relaxed transition-colors rounded px-2 py-1 border ${selectedNodeId === entry.nodeId
-                        ? "bg-blue-100 border-blue-300"
-                        : "border-transparent"
+                      ? "bg-blue-100 border-blue-300"
+                      : "border-transparent"
                       }`}
                   >
                     <span className="text-[#717182] text-xs mr-2">
@@ -1135,8 +1200,8 @@ export default function AgendaTrackerScreen({
                         key={type}
                         onClick={() => setSelectedNodeType(type)}
                         className={`transition-all ${selectedNodeType === type
-                            ? categoryStyles[type] + " border"
-                            : "opacity-50 hover:opacity-100"
+                          ? categoryStyles[type] + " border"
+                          : "opacity-50 hover:opacity-100"
                           }`}
                       >
                         <AgendaTag type={type} asButton={false} />
@@ -1183,8 +1248,8 @@ export default function AgendaTrackerScreen({
                       handleItemDrop(e, item.id, "decision")
                     }
                     className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                        ? "border-[#0064FF] shadow-lg"
-                        : "border-[rgba(0,0,0,0.1)]"
+                      ? "border-[#0064FF] shadow-lg"
+                      : "border-[rgba(0,0,0,0.1)]"
                       } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
@@ -1258,8 +1323,8 @@ export default function AgendaTrackerScreen({
                       handleItemDrop(e, item.id, "action")
                     }
                     className={`bg-white border rounded-lg p-3 transition-all cursor-move ${dragOverItem === item.id
-                        ? "border-[#0064FF] shadow-lg"
-                        : "border-[rgba(0,0,0,0.1)]"
+                      ? "border-[#0064FF] shadow-lg"
+                      : "border-[rgba(0,0,0,0.1)]"
                       } hover:shadow-md hover:border-[#0064FF]`}
                   >
                     {editingItem?.id === item.id &&
