@@ -1235,10 +1235,10 @@ export default function AgendaTrackerScreen({
               "일반",
               "Agenda Map (회의 모드)",
               "자, 다음은 아젠다 맵 관련 논의를 시작해보겠습니다.",
-              null
+              1
             );
           }}
-          className="bg-red-500 opacity-0"
+          className="opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
           title="Root 노드 생성"
         />
@@ -1252,11 +1252,11 @@ export default function AgendaTrackerScreen({
               "디자인",
               "디자인 시안 요청",
               "디자인 시안은 다은님이 다음주 까지 해주세요.",
-              1
+              7
             );
             addActionItem("@다은: AGENDA MAP 디자인 시안 제작(다음주 까지)");
           }}
-          className="bg-blue-500 opacity-0"
+          className="opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
           title="디자인 노드 + 액션 아이템"
         />
@@ -1270,10 +1270,10 @@ export default function AgendaTrackerScreen({
               "아이디어",
               "발화를 노드로 하는 branch 그래프 제안",
               "Agenda map의 기본적인 구성은 발화를 노드로 하는 branch 그래프 형태로 하는 것이 어떨까요?",
-              2
+              8
             );
           }}
-          className="bg-green-500 opacity-0"
+          className="opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
           title="아이디어 노드"
         />
@@ -1287,10 +1287,10 @@ export default function AgendaTrackerScreen({
               "개발",
               "개발 프레임워크 리서치 결과 공유",
               "저번 회의에서 요청주신 개발 프레임워크 리서치 결과 보고서 공유 드립니다.",
-              1
+              7
             );
           }}
-          className="bg-yellow-500 opacity-0"
+          className="opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
           title="개발 노드"
         />
@@ -1304,11 +1304,11 @@ export default function AgendaTrackerScreen({
               "개발",
               "Gemini API 사용 결정",
               "성능과 비용을 종합적으로 고려했을 때, Gemini API를 쓰기로 결정했습니다.",
-              4
+              10
             );
             addDecision("API 선정: Gemini API 사용 결정");
           }}
-          className="bg-purple-500 opacity-0"
+          className="opacity-0"
           style={{ width: '32px', height: '32px', cursor: 'default' }}
           title="API 결정 노드 + 결정사항"
         />
