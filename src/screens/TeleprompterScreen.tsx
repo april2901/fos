@@ -490,14 +490,29 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
   }, [parsedScript]);
 
   // Trigger LLM reconstruction when skipped ranges grow large enough
+  // 헬퍼: 현재 커서 위치에서 문장이 끝나는 지점(마침표/물음표/줄바꿈)을 찾음
+  const findNextSentenceEnd = useCallback((text: string, currentIdx: number) => {
+    const afterText = text.slice(currentIdx);
+    // 문장 부호(.!?) 혹은 줄바꿈을 찾음
+    const match = /[.!?\n]/.exec(afterText);
+    
+    if (match) {
+      // 찾았으면 그 바로 뒤 (공백 포함)
+      return currentIdx + match.index + 1;
+    }
+    // 못 찾으면 그냥 현재 위치에서 20자 뒤 (너무 멀리 안 가도록)
+    return Math.min(text.length, currentIdx + 20);
+  }, []);
+
+
+  // LLM 호출 로직 (useEffect 대체)
   useEffect(() => {
     if (!skippedRanges || skippedRanges.length === 0) return;
-    if (isReconstructing || reconstructedSuggestion) return; // already working or have suggestion
+    if (isReconstructing) return; 
+    if (showSuggestionBanner) return; // 이미 떠있으면 유지
 
-    // Compute total skipped chars
     const totalSkippedChars = skippedRanges.reduce((acc, r) => acc + Math.max(0, r.end - r.start), 0);
 
-    // Count fully skipped sentences
     let skippedSentences = 0;
     for (const sentence of parsedScript) {
       for (const range of skippedRanges) {
@@ -508,12 +523,15 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
       }
     }
 
-    // Thresholds: 2 full sentences or >120 chars skipped
-    const shouldCall = skippedSentences >= 2 || totalSkippedChars >= 120;
+    // 1문장 이상 또는 10글자 이상 스킵 시 발동
+    const shouldCall = skippedSentences >= 1 || totalSkippedChars >= 10;
+    
     if (!shouldCall) return;
 
-    (async () => {
+    // 디바운싱: 1.2초 동안 추가 스킵이 없으면 호출 (말이 끝날 때쯤)
+    const timeoutId = setTimeout(async () => {
       setIsReconstructing(true);
+      
       try {
         const resp = await fetch('/api/reconstruct-script', {
           method: 'POST',
@@ -521,28 +539,41 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
           body: JSON.stringify({
             script: fullScript,
             skippedRanges,
-            currentIndex: currentCharIndex,
+            currentIndex: currentCharIndexRef.current, // 요청 시점의 문맥
           }),
         });
 
         if (resp.ok) {
           const data = await resp.json();
-          if (data && data.reconstructed) {
-            setReconstructedSuggestion(data.reconstructed.trim());
-            setSuggestionInsertIndex(data.insertIndex || currentCharIndex); // API에서 받은 삽입 위치 사용
-            setShowSuggestionBanner(true);
+          
+          if (data.reconstructed) {
+            // 🔥 [위치 동기화] 응답이 온 시점의 커서 위치를 기준으로 삽입점 재계산
+            const currentRealtimeIndex = currentCharIndexRef.current;
+            
+            // 사용자가 이미 너무 멀리(500자 이상) 가버렸으면 제안 포기 (너무 뒷북이라)
+            const lastSkipEnd = skippedRanges[skippedRanges.length - 1].end;
+            if (currentRealtimeIndex - lastSkipEnd > 500) {
+               console.log("Suggestion dropped: User moved too far.");
+            } else {
+               // 지금 읽고 있는 문장이 끝나면 바로 보여주도록 위치 설정
+               const dynamicInsertIndex = findNextSentenceEnd(fullScriptRef.current, currentRealtimeIndex);
+               
+               setReconstructedSuggestion(data.reconstructed.trim());
+               setSuggestionInsertIndex(dynamicInsertIndex);
+               setShowSuggestionBanner(true);
+            }
           }
-        } else {
-          console.error('Reconstruct API failed:', resp.statusText);
         }
       } catch (err) {
-        console.error('Reconstruct call error:', err);
+        console.error(err);
       } finally {
         setIsReconstructing(false);
       }
-    })();
+    }, 1200);
 
-  }, [skippedRanges, parsedScript, currentCharIndex, fullScript, isReconstructing, reconstructedSuggestion]);
+    return () => clearTimeout(timeoutId);
+
+  }, [skippedRanges, parsedScript, isReconstructing, showSuggestionBanner, findNextSentenceEnd, fullScript]);
 
   // currentCharIndex가 변경되면 해당하는 문장/구절 인덱스 계산
   useEffect(() => {
