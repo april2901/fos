@@ -1,79 +1,45 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
+// ESM/CJS 호환성을 위해 require 사용
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const Hangul = require('hangul-js');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const diff_match_patch = require('diff-match-patch');
+
+// --- 인터페이스 정의 ---
 interface SpeechComparisonRequest {
     spokenText: string;
     scriptText: string;
     lastMatchedIndex: number;
 }
 
-interface NormalizedScriptData {
-    text: string;
+interface JamoScriptData {
+    jamoText: string;
     indexMap: number[];
+    originalLength: number;
 }
 
-// 간단한 텍스트 정규화 (공백, 문장부호 제거) - 정규식 캐싱
-const NORMALIZE_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/g;
-const CHAR_CHECK_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/;
+// --- 캐싱 설정 ---
+const SCRIPT_CACHE = new Map<string, JamoScriptData>();
+const MAX_CACHE_SIZE = 5;
 
-const NORMALIZED_CACHE = new Map<string, NormalizedScriptData>();
-const MAX_CACHE_SIZE = 4;
-
-function normalizeText(text: string): string {
-    return text.toLowerCase().replace(NORMALIZE_REGEX, '');
-}
-
-function normalizeScriptWithIndexMap(scriptText: string): NormalizedScriptData {
-    const normalizedChars: string[] = [];
-    const indexMap: number[] = [];
-
-    for (let i = 0; i < scriptText.length; i++) {
-        const char = scriptText[i];
-        if (!CHAR_CHECK_REGEX.test(char)) {
-            normalizedChars.push(char.toLowerCase());
-            indexMap.push(i);
-        }
+// --- Helper Functions ---
+function getJamoScriptData(scriptText: string): JamoScriptData {
+    if (SCRIPT_CACHE.has(scriptText)) return SCRIPT_CACHE.get(scriptText)!;
+    const data = normalizeAndDecompose(scriptText);
+    if (SCRIPT_CACHE.size >= MAX_CACHE_SIZE) {
+        const firstKey = SCRIPT_CACHE.keys().next().value;
+        if (firstKey) SCRIPT_CACHE.delete(firstKey);
     }
-
-    return {
-        text: normalizedChars.join(''),
-        indexMap,
-    };
+    SCRIPT_CACHE.set(scriptText, data);
+    return data;
 }
 
-function getNormalizedScriptData(scriptText: string): NormalizedScriptData {
-    const cached = NORMALIZED_CACHE.get(scriptText);
-    if (cached) {
-        return cached;
-    }
-
-    const normalized = normalizeScriptWithIndexMap(scriptText);
-    NORMALIZED_CACHE.set(scriptText, normalized);
-
-    if (NORMALIZED_CACHE.size > MAX_CACHE_SIZE) {
-        const firstKey = NORMALIZED_CACHE.keys().next().value;
-        if (firstKey) {
-            NORMALIZED_CACHE.delete(firstKey);
-        }
-    }
-
-    return normalized;
-}
-
-function findOriginalIndexFromMap(indexMap: number[], normalizedIndex: number, fallbackLength: number): number {
-    if (normalizedIndex < 0) return 0;
-    if (normalizedIndex >= indexMap.length) return fallbackLength;
-    return indexMap[normalizedIndex];
-}
-
-function findNormalizedIndexByOriginal(indexMap: number[], originalIndex: number): number {
-    if (originalIndex <= 0 || indexMap.length === 0) return 0;
-
-    let left = 0;
-    let right = indexMap.length - 1;
-    let result = indexMap.length;
-
+function findJamoIndexByOriginal(indexMap: number[], originalIndex: number): number {
+    if (originalIndex <= 0) return 0;
+    let left = 0, right = indexMap.length - 1, result = indexMap.length;
     while (left <= right) {
-        const mid = (left + right) >> 1;
+        const mid = Math.floor((left + right) / 2);
         if (indexMap[mid] >= originalIndex) {
             result = mid;
             right = mid - 1;
@@ -81,153 +47,192 @@ function findNormalizedIndexByOriginal(indexMap: number[], originalIndex: number
             left = mid + 1;
         }
     }
-
     return result;
 }
 
-// 두 문자열의 공통 부분문자열 찾기 (LCS 기반)
-function findLongestCommonSubstring(s1: string, s2: string): { start: number; length: number } {
-    if (s1.length === 0 || s2.length === 0) return { start: -1, length: 0 };
+function normalizeAndDecompose(text: string): JamoScriptData {
+    let jamoStr = "";
+    const map: number[] = [];
+    const FILTER_REGEX = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/;
 
-    const m = s1.length;
-    const n = s2.length;
-
-    // 메모리 효율을 위해 2행만 사용
-    let prev = new Array(n + 1).fill(0);
-    let curr = new Array(n + 1).fill(0);
-
-    let maxLength = 0;
-    let endIndex = -1;
-
-    for (let i = 1; i <= m; i++) {
-        for (let j = 1; j <= n; j++) {
-            if (s1[i - 1] === s2[j - 1]) {
-                curr[j] = prev[j - 1] + 1;
-                if (curr[j] > maxLength) {
-                    maxLength = curr[j];
-                    endIndex = j; // s2에서의 끝 위치
-                }
-            } else {
-                curr[j] = 0;
+    for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (!FILTER_REGEX.test(char)) {
+            const disassembled = Hangul.disassemble(char);
+            for (const jamo of disassembled) {
+                jamoStr += jamo;
+                map.push(i);
             }
         }
-        [prev, curr] = [curr, prev];
-        curr.fill(0);
     }
-
-    return { start: endIndex - maxLength, length: maxLength };
+    return { jamoText: jamoStr, indexMap: map, originalLength: text.length };
 }
 
+// --- Main Handler ---
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-    // CORS handling
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader(
-        'Access-Control-Allow-Headers',
-        'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
-    );
+    res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-Type');
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
-
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method not allowed' });
-    }
+    if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+    if (req.method !== 'POST') { return res.status(405).json({ error: 'Method not allowed' }); }
 
     try {
-        const { spokenText, scriptText, lastMatchedIndex } = req.body as SpeechComparisonRequest;
+        const { spokenText, scriptText, lastMatchedIndex = 0 } = req.body as SpeechComparisonRequest;
 
-        if (!spokenText || !scriptText) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        if (!spokenText || !scriptText) return res.status(400).json({ error: 'Missing fields' });
+        if (spokenText.length < 2) {
+            return res.status(200).json({ currentMatchedIndex: lastMatchedIndex, isCorrect: false, confidence: 0 });
         }
 
-        // 정규화 (script는 인덱스 매핑 포함, spoken은 간단 변환)
-        const normalizedSpoken = normalizeText(spokenText);
-        const { text: normalizedScript, indexMap } = getNormalizedScriptData(scriptText);
-
-        if (normalizedSpoken.length < 2) {
-            return res.status(200).json({
-                currentMatchedIndex: lastMatchedIndex || 0,
-                isCorrect: false,
-                confidence: 0,
-            });
+        // 1. 데이터 준비
+        const scriptData = getJamoScriptData(scriptText);
+        let spokenJamo: string;
+        try {
+            const disassembled = Hangul.disassemble(spokenText);
+            spokenJamo = Array.isArray(disassembled) ? disassembled.flat().join('') : String(disassembled);
+        } catch (e) {
+            return res.status(200).json({ currentMatchedIndex: lastMatchedIndex, isCorrect: false, confidence: 0 });
         }
 
-        // 현재 위치의 정규화된 인덱스 계산 (간소화)
-        const lastIdx = Math.min(lastMatchedIndex || 0, scriptText.length);
-        const currentNormalizedIndex = findNormalizedIndexByOriginal(indexMap, lastIdx);
+        // 2. 윈도우 설정 (넓게 잡음)
+        const currentJamoIndex = findJamoIndexByOriginal(scriptData.indexMap, lastMatchedIndex);
+        const WINDOW_BACK_BUFFER = 50; 
+        const WINDOW_FORWARD_BUFFER = 1500; // 스킵 감지를 위해 충분히 넓게
 
-        // 검색 범위: 현재 위치 앞 5자 ~ 뒤 400자
-        const searchStart = Math.max(0, currentNormalizedIndex - 5);
-        const searchEnd = Math.min(normalizedScript.length, currentNormalizedIndex + 400);
-        const searchScript = normalizedScript.slice(searchStart, searchEnd);
+        const windowStart = Math.max(0, currentJamoIndex - WINDOW_BACK_BUFFER);
+        const windowEnd = Math.min(scriptData.jamoText.length, currentJamoIndex + WINDOW_FORWARD_BUFFER);
+        const windowText = scriptData.jamoText.slice(windowStart, windowEnd);
 
-        // 음성의 마지막 부분으로 빠른 매칭
-        let bestMatch = { index: -1, length: 0 };
+        if (!windowText) return res.status(200).json({ currentMatchedIndex: lastMatchedIndex, isCorrect: false });
 
-        // 마지막 2~25자로 매칭
-        const maxLen = Math.min(25, normalizedSpoken.length);
-        for (let len = maxLen; len >= 2; len--) {
-            const searchPhrase = normalizedSpoken.slice(-len);
-            const idx = searchScript.indexOf(searchPhrase);
+        // 3. Diff-Match-Patch 설정
+        const dmp = new diff_match_patch();
+        dmp.Match_Distance = 1000;
+        dmp.Match_Threshold = 0.6; // 약간 여유를 줌 (검증 단계에서 거를 것이므로)
 
-            if (idx !== -1) {
-                bestMatch = { index: searchStart + idx, length: len };
-                break; // 가장 긴 매칭 찾으면 즉시 종료
+        const maxBits = dmp.Match_MaxBits || 32;
+        const pattern = spokenJamo.length > maxBits ? spokenJamo.slice(-maxBits) : spokenJamo;
+        const expectedLocInWindow = Math.max(0, currentJamoIndex - windowStart);
+
+        // 4. 매칭 실행
+        // foundIndexInWindow는 '대략적인' 시작 위치임 (퍼지 매칭)
+        let foundIndexInWindow = dmp.match_main(windowText, pattern, expectedLocInWindow);
+
+        if (foundIndexInWindow !== -1) {
+            // =================================================================
+            // 🔥 [해결책 1 & 2] 정밀 검증 및 시작점 보정 (Trim & Verify)
+            // =================================================================
+            
+            // 매칭된 위치부터 발화 길이만큼(혹은 좀 더 길게) 텍스트를 잘라내서 정밀 비교
+            // 자소 단위이므로 패턴 길이보다 약간 여유있게 잘라냄 (삽입/삭제 고려)
+            const candidateLength = Math.min(pattern.length + 20, windowText.length - foundIndexInWindow);
+            const candidateText = windowText.substr(foundIndexInWindow, candidateLength);
+            
+            // 정밀 Diff 실행
+            const diffs = dmp.diff_main(candidateText, pattern);
+            dmp.diff_cleanupSemantic(diffs); // 의미 단위로 정리
+
+            let correctChars = 0;
+            let offsetAdjustment = 0;
+            let firstMatchFound = false;
+
+            // Diff를 순회하며 실제 매칭 시작점과 정확도를 계산
+            for (const [op, text] of diffs) {
+                // op: -1(Script에만 있음/삭제), 1(Spoken에만 있음/추가), 0(일치)
+                
+                if (!firstMatchFound) {
+                    // 아직 첫 일치 구간을 못 찾았는데
+                    if (op === 0) {
+                        // 일치 구간 시작! 여기가 진짜 시작점
+                        firstMatchFound = true;
+                        correctChars += text.length;
+                    } else if (op === -1) {
+                        // Script에는 있는데 Spoken에는 없음 -> 매칭 시작점이 아님 (쓰레기 값)
+                        // 시작 인덱스를 뒤로 미룸
+                        offsetAdjustment += text.length;
+                    }
+                    // op === 1 (Spoken에만 있는 건 스크립트 인덱스에 영향 안 줌)
+                } else {
+                    // 이미 시작점을 찾은 후에는 일치하는 글자 수 카운트
+                    if (op === 0) correctChars += text.length;
+                }
             }
-        }
 
-        // 정확 매칭 실패 시 짧은 LCS
-        if (bestMatch.index === -1 && normalizedSpoken.length >= 4) {
-            const spokenEnd = normalizedSpoken.slice(-20);
-            const lcsResult = findLongestCommonSubstring(spokenEnd, searchScript.slice(0, 250));
-
-            if (lcsResult.length >= 3) {
-                bestMatch = {
-                    index: searchStart + lcsResult.start,
-                    length: lcsResult.length
-                };
+            // [해결 1] 정확도 검사 (Accuracy Check)
+            // 실제 일치하는 자소 비율이 65% 미만이면 "틀린 단어" 혹은 "우연한 매칭"으로 간주하고 기각
+            const accuracy = correctChars / pattern.length;
+            if (accuracy < 0.65) {
+                return res.status(200).json({
+                    currentMatchedIndex: lastMatchedIndex,
+                    isCorrect: false,
+                    confidence: 0,
+                    message: "Low accuracy match"
+                });
             }
-        }
 
-        if (bestMatch.index !== -1) {
-            const normalizedMatchEnd = bestMatch.index + bestMatch.length;
-            const originalIndex = findOriginalIndexFromMap(indexMap, normalizedMatchEnd, scriptText.length);
+            // [해결 2] 시작점 보정 (Trim Leading Garbage)
+            // 퍼지 매칭이 앞 문장의 끝부분을 억지로 잡았더라도, diff 분석을 통해
+            // 실제 일치(Equal)가 시작되는 지점만큼 인덱스를 뒤로 밈.
+            foundIndexInWindow += offsetAdjustment;
 
-            // >= 로 변경하여 문장 끝에서도 진행되도록
-            if (originalIndex >= (lastMatchedIndex || 0)) {
-                // 스킵된 부분 계산 (매칭 시작 위치 - 현재 위치)
-                const matchStartNormalized = bestMatch.index;
-                const matchStartOriginal = findOriginalIndexFromMap(indexMap, matchStartNormalized, scriptText.length);
+            // -------------------------------------------------------------
+            // 이후 로직은 기존과 유사하게 인덱스 변환 및 스킵 처리
+            // -------------------------------------------------------------
 
-                // 스킵된 구간이 있으면 반환
-                const skippedStart = lastMatchedIndex || 0;
-                const skippedEnd = matchStartOriginal;
-                const hasSkipped = skippedEnd > skippedStart + 2; // 2자 이상 스킵시에만
+            const absoluteJamoStart = windowStart + foundIndexInWindow;
+            // 끝 위치는 패턴 길이만큼 더함 (정확도를 위해 diff기반 길이 계산 가능하나 여기선 단순화)
+            const absoluteJamoEnd = absoluteJamoStart + pattern.length; 
+
+            // 자소 인덱스 -> 원본 인덱스 변환
+            let originalStart = scriptData.indexMap[Math.min(absoluteJamoStart, scriptData.indexMap.length - 1)];
+            const originalEnd = scriptData.indexMap[Math.min(absoluteJamoEnd, scriptData.indexMap.length - 1)];
+
+            // [단어 경계 보정 - Word Snap]
+            // 보정된 시작점이 단어 중간이라면, 단어의 시작점으로 당겨줌 (가독성 위해)
+            if (originalStart > 0 && originalStart < scriptText.length) {
+                const isSeparator = (char: string) => /[\s\n\r.,!?;:'"]/.test(char);
+                if (!isSeparator(scriptText[originalStart - 1])) {
+                    let backTrackIdx = originalStart;
+                    for(let k=0; k<15; k++) {
+                        if(backTrackIdx <= 0) break;
+                        if(isSeparator(scriptText[backTrackIdx-1])) break;
+                        backTrackIdx--;
+                    }
+                    // 단, 너무 많이 뒤로 가서 이전 매칭 위치보다 전으로 가면 안됨
+                    if (backTrackIdx >= lastMatchedIndex) {
+                        originalStart = backTrackIdx;
+                    }
+                }
+            }
+
+            // 진행 방향 검사 및 스킵 처리
+            if (originalEnd > lastMatchedIndex) {
+                const jumpDistance = originalStart - lastMatchedIndex;
+                
+                // 스킵 판단 기준: 발화 길이보다 현저히 멀리 점프했는지
+                // (약 10글자 이상 점프 시 스킵)
+                const isSkipped = jumpDistance > 10;
 
                 return res.status(200).json({
-                    currentMatchedIndex: originalIndex,
+                    currentMatchedIndex: originalEnd,
                     isCorrect: true,
-                    confidence: bestMatch.length / 15,
-                    skippedRange: hasSkipped ? { start: skippedStart, end: skippedEnd } : null,
+                    confidence: accuracy,
+                    // 스킵 범위: 이전 위치 끝 ~ 보정된 현재 위치 시작
+                    skippedRange: isSkipped ? { start: lastMatchedIndex, end: originalStart } : null
                 });
             }
         }
 
-        // 매칭 실패 시 현재 위치 유지
         return res.status(200).json({
-            currentMatchedIndex: lastMatchedIndex || 0,
+            currentMatchedIndex: lastMatchedIndex,
             isCorrect: false,
-            confidence: 0,
+            confidence: 0
         });
 
     } catch (error) {
-        console.error('Speech comparison error:', error);
-        return res.status(500).json({
-            error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        console.error('Alignment Error:', error);
+        return res.status(500).json({ error: 'Internal Error' });
     }
 }

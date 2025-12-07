@@ -714,21 +714,27 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
     cumulativeTranscriptRef.current = cumulativeTranscript;
   }, [cumulativeTranscript]);
 
+
   const handleMatchUpdate = useCallback(
     (newIndex: number, skippedRange?: { start: number; end: number } | null) => {
+      // 1. 커서 업데이트 (뒤로 가는 것 방지)
       if (newIndex > currentCharIndexRef.current) {
         currentCharIndexRef.current = newIndex;
         setCurrentCharIndex(newIndex);
       }
 
+      // 2. 스킵 범위 업데이트 (중복 방지 강화)
       if (skippedRange && skippedRange.end > skippedRange.start + 1) {
-        setSkippedRanges(prev => [
-          ...prev,
-          {
-            start: Math.max(0, skippedRange.start - 1),
-            end: Math.max(0, skippedRange.end - 1),
-          },
-        ]);
+        setSkippedRanges(prev => {
+          // 이미 있는 범위 안에 포함되면 무시
+          const isRedundant = prev.some(
+            r => r.start <= skippedRange.start && r.end >= skippedRange.end
+          );
+          if (isRedundant) return prev;
+
+          // 겹치는 범위가 있으면 병합 (선택사항, 여기선 단순 추가)
+          return [...prev, skippedRange];
+        });
       }
     },
     []
@@ -825,29 +831,6 @@ export default function TeleprompterScreen({ presentationTitle, script, targetTi
       if (!searchText || searchText.length < 2) return;
 
       setTranscript(currentText);
-
-      if (!finalTranscript.trim() && interimTranscript.length < 8) {
-        return;
-      }
-
-      const localMatch = matchSpeechLocally(
-        searchText,
-        normalizedScriptRef.current,
-        currentCharIndexRef.current,
-        fullScriptRef.current.length
-      );
-
-      let shouldCallServer = true;
-      if (localMatch && localMatch.matched) {
-        handleMatchUpdate(localMatch.newIndex, localMatch.skippedRange || undefined);
-        if (localMatch.confidence >= LOCAL_CONFIDENCE_THRESHOLD) {
-          shouldCallServer = false;
-        }
-      }
-
-      if (!shouldCallServer) {
-        return;
-      }
 
       // API 호출 쓰로틀링: 이미 호출 중이거나 50ms 이내면 스킵
       const now = Date.now();
