@@ -88,10 +88,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // 1. 데이터 준비
         const scriptData = getJamoScriptData(scriptText);
-        let spokenJamo: string;
+
+        // 발화문도 자소로 변환 (공백/문장부호 제거)
+        let spokenJamo = '';
         try {
-            const disassembled = Hangul.disassemble(spokenText);
-            spokenJamo = Array.isArray(disassembled) ? disassembled.flat().join('') : String(disassembled);
+            const skipRegex = /[\s\n\r.,!?;:'"「」『』【】\-–—…·()（）\[\]]/;
+            for (let i = 0; i < spokenText.length; i++) {
+                const ch = spokenText[i];
+                if (skipRegex.test(ch)) continue;
+
+                if (Hangul.isHangul(ch)) {
+                    const parts = Hangul.disassemble(ch);
+                    for (const p of parts) spokenJamo += p;
+                } else {
+                    spokenJamo += ch.toLowerCase();
+                }
+            }
         } catch (e) {
             return res.status(200).json({ currentMatchedIndex: lastMatchedIndex, isCorrect: false, confidence: 0 });
         }
